@@ -215,17 +215,47 @@ class FigmaUIDistillation:
             raise model_error
         
         # 1. Detection 증류 손실 (objectness + bbox)
-        det_loss, det_metrics = self.distillation_loss(
-            student_outputs, teacher_outputs, targets
-        )
+        try:
+            det_loss, det_metrics = self.distillation_loss(
+                student_outputs, teacher_outputs, targets
+            )
+            print(f"✅ Detection 손실 계산 성공: {det_loss.item():.4f}")
+        except Exception as det_error:
+            import traceback
+            print(f"❌ Detection 손실 계산 오류:")
+            print(f"   오류 타입: {type(det_error).__name__}")
+            print(f"   오류 메시지: {str(det_error)}")
+            print(f"   스택 트레이스:")
+            print(traceback.format_exc())
+            raise det_error
         
         # 2. Feature 증류 손실
-        feat_loss, feat_metrics = self.feature_loss(
-            student_features, teacher_features
-        )
+        try:
+            feat_loss, feat_metrics = self.feature_loss(
+                student_features, teacher_features
+            )
+            print(f"✅ Feature 손실 계산 성공: {feat_loss.item():.4f}")
+        except Exception as feat_error:
+            import traceback
+            print(f"❌ Feature 손실 계산 오류:")
+            print(f"   오류 타입: {type(feat_error).__name__}")  
+            print(f"   오류 메시지: {str(feat_error)}")
+            print(f"   스택 트레이스:")
+            print(traceback.format_exc())
+            raise feat_error
         
         # 3. 원본 YOLO 손실 (Ground Truth 기반)
-        base_loss = self.student.model.loss(student_outputs, targets)
+        try:
+            base_loss = self.student.model.loss(student_outputs, targets)
+            print(f"✅ Base 손실 계산 성공: {base_loss.item():.4f}")
+        except Exception as base_error:
+            import traceback
+            print(f"❌ Base 손실 계산 오류:")
+            print(f"   오류 타입: {type(base_error).__name__}")
+            print(f"   오류 메시지: {str(base_error)}")
+            print(f"   스택 트레이스:")
+            print(traceback.format_exc())
+            raise base_error
         
         # 전체 손실 조합
         total_loss = det_loss + 0.5 * feat_loss + 0.3 * base_loss
@@ -384,7 +414,13 @@ class FigmaUIDistillation:
                             wandb.log(metrics, step=epoch * len(train_loader) + batch_idx)
                             
                 except Exception as batch_error:
-                    print(f"❌ Batch {batch_idx} 처리 중 오류: {batch_error}")
+                    import traceback
+                    print(f"❌ Batch {batch_idx} 처리 중 오류:")
+                    print(f"   오류 타입: {type(batch_error).__name__}")
+                    print(f"   오류 메시지: {str(batch_error)}")
+                    print(f"   상세 스택 트레이스:")
+                    print(traceback.format_exc())
+                    
                     if batch_idx == 0:  # 첫 번째 배치에서 오류면 중단
                         print("첫 번째 배치부터 오류 발생. 학습을 중단합니다.")
                         return 0
