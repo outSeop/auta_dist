@@ -88,13 +88,24 @@ class SingleClassDistillationLoss(nn.Module):
         
         # Teacher confidence가 높은 예측만 사용
         try:
-            high_conf_mask = torch.sigmoid(teacher_obj) > 0.5
+            high_conf_mask = torch.sigmoid(teacher_obj) > 0.5  # [B, N, 1]
+            high_conf_mask_bbox = high_conf_mask.squeeze(-1)   # [B, N] for bbox indexing
+            
+            print(f"🔍 high_conf_mask shape: {high_conf_mask.shape}")
+            print(f"🔍 high_conf_mask_bbox shape: {high_conf_mask_bbox.shape}")
             
             if high_conf_mask.any():
+                # BBox 마스킹 - 차원 맞춤
+                student_bbox_masked = student_bbox[high_conf_mask_bbox]  # [num_valid, 4]
+                teacher_bbox_masked = teacher_bbox[high_conf_mask_bbox]  # [num_valid, 4]
+                
+                print(f"🔍 Masked student_bbox shape: {student_bbox_masked.shape}")
+                print(f"🔍 Masked teacher_bbox shape: {teacher_bbox_masked.shape}")
+                
                 # IoU loss + L1 loss 조합
                 bbox_loss = self.bbox_distillation_loss(
-                    student_bbox[high_conf_mask],
-                    teacher_bbox[high_conf_mask]
+                    student_bbox_masked,
+                    teacher_bbox_masked
                 )
             else:
                 bbox_loss = torch.tensor(0.0, device=student_obj.device)
@@ -171,11 +182,11 @@ class SingleClassDistillationLoss(nn.Module):
         for i in range(len(targets)):
             if len(targets[i]) > 0:
                 # Teacher 예측과 GT 매칭
-                teacher_conf = torch.sigmoid(objectness[i])
-                high_conf_idx = teacher_conf > 0.5
+                teacher_conf = torch.sigmoid(objectness[i])  # [N, 1]
+                high_conf_idx = teacher_conf.squeeze(-1) > 0.5  # [N] for bbox indexing
                 
                 if high_conf_idx.any():
-                    teacher_boxes = bbox[i][high_conf_idx.squeeze()]
+                    teacher_boxes = bbox[i][high_conf_idx]  # [num_valid, 4]
                     gt_boxes = targets[i][:, 1:5]  # [class, x, y, w, h] 형식 가정
                     
                     # IoU 계산하여 quality score 생성
