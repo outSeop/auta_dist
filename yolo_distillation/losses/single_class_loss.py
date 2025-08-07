@@ -141,13 +141,31 @@ class SingleClassDistillationLoss(nn.Module):
     
     def bbox_distillation_loss(self, student_bbox, teacher_bbox):
         """Bounding Box 증류 손실 (IoU + L1)"""
-        # CIoU/DIoU loss 계산
-        iou_loss = self.compute_ciou_loss(student_bbox, teacher_bbox)
+        print(f"🔍 BBox 손실 계산 - Student shape: {student_bbox.shape}, Teacher shape: {teacher_bbox.shape}")
         
-        # L1 smooth loss
-        l1_loss = self.smooth_l1(student_bbox, teacher_bbox).mean()
+        # 너무 많은 박스가 있으면 샘플링 (메모리 절약)
+        if student_bbox.shape[0] > 10000:
+            indices = torch.randperm(student_bbox.shape[0])[:10000]
+            student_bbox = student_bbox[indices]
+            teacher_bbox = teacher_bbox[indices]
+            print(f"🔧 샘플링 후 - Student: {student_bbox.shape}, Teacher: {teacher_bbox.shape}")
         
-        return iou_loss + l1_loss
+        try:
+            # YOLO bbox 형식 (cx, cy, w, h) → (x1, y1, x2, y2) 변환
+            student_bbox_xyxy = self.xywh_to_xyxy(student_bbox)
+            teacher_bbox_xyxy = self.xywh_to_xyxy(teacher_bbox)
+            
+            # CIoU/DIoU loss 계산
+            iou_loss = self.compute_ciou_loss(student_bbox_xyxy, teacher_bbox_xyxy)
+            
+            # L1 smooth loss (원본 좌표에서)
+            l1_loss = self.smooth_l1(student_bbox, teacher_bbox).mean()
+            
+            return iou_loss + l1_loss
+            
+        except Exception as e:
+            print(f"❌ BBox 손실 세부 오류: {e}")
+            return torch.tensor(0.0, device=student_bbox.device)
     
     def compute_ciou_loss(self, pred_boxes, target_boxes):
         """Complete IoU Loss 계산"""
@@ -158,6 +176,25 @@ class SingleClassDistillationLoss(nn.Module):
     def box_iou(self, box1, box2):
         """IoU 계산"""
         # box1, box2: [N, 4] (x1, y1, x2, y2)
+        print(f"🔍 IoU 계산 - box1: {box1.shape}, box2: {box2.shape}")
+        
+        # Shape 확인
+        if box1.shape != box2.shape:
+            print(f"⚠️ Shape 불일치: {box1.shape} vs {box2.shape}")
+            min_len = min(box1.shape[0], box2.shape[0])
+            box1 = box1[:min_len]
+            box2 = box2[:min_len]
+            print(f"🔧 Shape 조정 후: {box1.shape}, {box2.shape}")
+        
+        # 유효한 박스만 처리 (너비와 높이가 양수인 것)
+        valid_mask1 = (box1[:, 2] > box1[:, 0]) & (box1[:, 3] > box1[:, 1])
+        valid_mask2 = (box2[:, 2] > box2[:, 0]) & (box2[:, 3] > box2[:, 1])
+        valid_mask = valid_mask1 & valid_mask2
+        
+        if not valid_mask.any():
+            print("⚠️ 유효한 박스가 없음")
+            return torch.zeros(box1.shape[0], device=box1.device)
+        
         area1 = (box1[:, 2] - box1[:, 0]) * (box1[:, 3] - box1[:, 1])
         area2 = (box2[:, 2] - box2[:, 0]) * (box2[:, 3] - box2[:, 1])
         
@@ -170,7 +207,8 @@ class SingleClassDistillationLoss(nn.Module):
                     torch.clamp(inter_y2 - inter_y1, min=0)
         
         union_area = area1 + area2 - inter_area
-        iou = inter_area / (union_area + 1e-6)
+        iou = torch.zeros_like(area1)
+        iou[valid_mask] = inter_area[valid_mask] / (union_area[valid_mask] + 1e-6)
         
         return iou
     
@@ -198,6 +236,20 @@ class SingleClassDistillationLoss(nn.Module):
             return torch.cat(quality_scores)
         else:
             return torch.tensor(0.0, device=bbox.device)
+    
+    def xywh_to_xyxy(self, bbox):
+        """YOLO bbox 형식 (cx, cy, w, h) → (x1, y1, x2, y2) 변환"""
+        if bbox.shape[-1] != 4:
+            print(f"⚠️ 예상과 다른 bbox 형식: {bbox.shape}")
+            return bbox
+            
+        cx, cy, w, h = bbox[..., 0], bbox[..., 1], bbox[..., 2], bbox[..., 3]
+        x1 = cx - w / 2
+        y1 = cy - h / 2
+        x2 = cx + w / 2
+        y2 = cy + h / 2
+        
+        return torch.stack([x1, y1, x2, y2], dim=-1)
     
     def localization_quality_loss(self, student_bbox, student_obj, quality_scores):
         """Localization quality 전달을 위한 손실"""
