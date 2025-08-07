@@ -260,9 +260,14 @@ class FigmaUIDistillation:
             optimizer, T_max=epochs
         )
         
-        # 데이터로더 생성 (실제 구현 필요)
-        # train_loader = create_dataloader(...)
-        # val_loader = create_dataloader(...)
+        # 데이터로더 생성
+        train_loader = self.student.train_loader if hasattr(self.student, 'train_loader') else None
+        val_loader = self.student.val_loader if hasattr(self.student, 'val_loader') else None
+        
+        # 데이터로더가 없는 경우 YOLO 기본 학습 방식 사용
+        if train_loader is None:
+            print("데이터로더를 찾을 수 없습니다. YOLO 기본 학습 방식을 사용합니다.")
+            return self._train_with_yolo_default(epochs, batch_size, learning_rate, save_dir)
         
         best_map = 0
         
@@ -313,4 +318,33 @@ class FigmaUIDistillation:
                 if self.use_wandb:
                     wandb.save(save_path)
         
+        return best_map
+    
+    def _train_with_yolo_default(self, epochs, batch_size, learning_rate, save_dir):
+        """
+        YOLO 기본 학습 방식을 사용한 Knowledge Distillation
+        """
+        print("YOLO 기본 학습 방식으로 Knowledge Distillation을 시작합니다...")
+        
+        # YOLO 기본 학습 설정
+        results = self.student.train(
+            data=self.modified_data_yaml,
+            epochs=epochs,
+            batch=batch_size,
+            lr0=learning_rate,
+            device=self.device,
+            project=save_dir,
+            name='distillation_run',
+            save=True,
+            plots=True,
+            verbose=True
+        )
+        
+        # 결과에서 최고 mAP 추출
+        if hasattr(results, 'results_dict'):
+            best_map = results.results_dict.get('metrics/mAP50-95(B)', 0.0)
+        else:
+            best_map = 0.0
+            
+        print(f"YOLO 기본 학습 완료! Best mAP: {best_map:.4f}")
         return best_map
