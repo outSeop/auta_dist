@@ -44,12 +44,18 @@ class FigmaUIDistillation:
         # 모델 초기화
         print(f"Loading teacher model: {teacher_model}")
         self.teacher = YOLO(teacher_model)
+        self.teacher.model = self.teacher.model.to(self.device)
         self.teacher.model.eval()
         for param in self.teacher.model.parameters():
             param.requires_grad = False
         
         print(f"Initializing student model: {student_model}")
         self.student = YOLO(student_model)
+        self.student.model = self.student.model.to(self.device)
+        
+        print(f"✅ Models loaded on device: {self.device}")
+        print(f"✅ Teacher parameters: {sum(p.numel() for p in self.teacher.model.parameters()):,}")
+        print(f"✅ Student parameters: {sum(p.numel() for p in self.student.model.parameters()):,}")
         
         # 단일 클래스 설정
         self.num_classes = 1  # Figma UI component
@@ -173,14 +179,40 @@ class FigmaUIDistillation:
             images = images.to(self.device)
             targets = batch[1] if len(batch) > 1 else None
         
-        # Teacher 추론 (no gradient)
-        with torch.no_grad():
-            teacher_features, teacher_outputs = self.teacher.model(images, augment=False)
-            teacher_outputs = self.parse_model_outputs(teacher_outputs)
+        # 모델 디바이스 확인
+        print(f"🔍 Teacher model device: {next(self.teacher.model.parameters()).device}")
+        print(f"🔍 Student model device: {next(self.student.model.parameters()).device}")
         
-        # Student 추론
-        student_features, student_outputs = self.student.model(images, augment=False)
-        student_outputs = self.parse_model_outputs(student_outputs)
+        # 모델을 올바른 디바이스로 이동
+        self.teacher.model = self.teacher.model.to(self.device)
+        self.student.model = self.student.model.to(self.device)
+        
+        try:
+            # Teacher 추론 (no gradient)
+            with torch.no_grad():
+                print("🔍 Teacher 추론 시작...")
+                teacher_outputs = self.teacher.model(images)
+                print(f"🔍 Teacher 출력 타입: {type(teacher_outputs)}")
+                if isinstance(teacher_outputs, (list, tuple)):
+                    print(f"🔍 Teacher 출력 개수: {len(teacher_outputs)}")
+                    teacher_outputs = teacher_outputs[0] if len(teacher_outputs) > 0 else teacher_outputs
+                teacher_outputs = self.parse_model_outputs(teacher_outputs)
+                teacher_features = []  # 임시로 빈 리스트
+            
+            # Student 추론
+            print("🔍 Student 추론 시작...")
+            student_outputs = self.student.model(images)
+            print(f"🔍 Student 출력 타입: {type(student_outputs)}")
+            if isinstance(student_outputs, (list, tuple)):
+                print(f"🔍 Student 출력 개수: {len(student_outputs)}")
+                student_outputs = student_outputs[0] if len(student_outputs) > 0 else student_outputs
+            student_outputs = self.parse_model_outputs(student_outputs)
+            student_features = []  # 임시로 빈 리스트
+            
+        except Exception as model_error:
+            print(f"❌ 모델 추론 중 오류: {model_error}")
+            print(f"❌ 오류 타입: {type(model_error)}")
+            raise model_error
         
         # 1. Detection 증류 손실 (objectness + bbox)
         det_loss, det_metrics = self.distillation_loss(
