@@ -148,7 +148,14 @@ class FigmaUIDistillation:
         """단일 학습 스텝"""
         # 배치 구조 확인 및 안전한 처리
         if isinstance(batch, dict):
-            images = batch['img'].to(self.device)
+            images = batch['img']
+            # 이미지 데이터 타입 및 정규화 처리
+            if images.dtype == torch.uint8:
+                images = images.float() / 255.0  # uint8 -> float32, [0,255] -> [0,1]
+            images = images.to(self.device)
+            
+            print(f"🔍 이미지 shape: {images.shape}, dtype: {images.dtype}, device: {images.device}")
+            
             # YOLO 배치에서 타겟 추출 (다양한 키 확인)
             if 'batch_idx' in batch:
                 targets = batch  # 전체 배치 정보
@@ -160,7 +167,10 @@ class FigmaUIDistillation:
                 targets = batch
         else:
             # 배치가 튜플이나 리스트인 경우
-            images = batch[0].to(self.device)
+            images = batch[0]
+            if images.dtype == torch.uint8:
+                images = images.float() / 255.0
+            images = images.to(self.device)
             targets = batch[1] if len(batch) > 1 else None
         
         # Teacher 추론 (no gradient)
