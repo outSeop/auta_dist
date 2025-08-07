@@ -146,8 +146,22 @@ class FigmaUIDistillation:
     
     def train_step(self, batch, optimizer):
         """단일 학습 스텝"""
-        images = batch['img'].to(self.device)
-        targets = batch['batch']  # 단일 클래스 타겟
+        # 배치 구조 확인 및 안전한 처리
+        if isinstance(batch, dict):
+            images = batch['img'].to(self.device)
+            # YOLO 배치에서 타겟 추출 (다양한 키 확인)
+            if 'batch_idx' in batch:
+                targets = batch  # 전체 배치 정보
+            elif 'cls' in batch and 'bboxes' in batch:
+                targets = batch  # 분리된 형태
+            else:
+                # 배치 키 확인을 위한 디버깅
+                print(f"🔍 배치 키: {list(batch.keys())}")
+                targets = batch
+        else:
+            # 배치가 튜플이나 리스트인 경우
+            images = batch[0].to(self.device)
+            targets = batch[1] if len(batch) > 1 else None
         
         # Teacher 추론 (no gradient)
         with torch.no_grad():
@@ -277,17 +291,27 @@ class FigmaUIDistillation:
             # 학습
             epoch_metrics = {}
             for batch_idx, batch in enumerate(train_loader):
-                metrics = self.train_step(batch, optimizer)
-                
-                # 배치 메트릭 누적
-                for k, v in metrics.items():
-                    if k not in epoch_metrics:
-                        epoch_metrics[k] = 0
-                    epoch_metrics[k] += v
-                
-                # 주기적 로깅
-                if batch_idx % 10 == 0 and self.use_wandb:
-                    wandb.log(metrics, step=epoch * len(train_loader) + batch_idx)
+                try:
+                    metrics = self.train_step(batch, optimizer)
+                    
+                    # 배치 메트릭 누적
+                    for k, v in metrics.items():
+                        if k not in epoch_metrics:
+                            epoch_metrics[k] = 0
+                        epoch_metrics[k] += v
+                    
+                    # 주기적 로깅
+                    if batch_idx % 10 == 0:
+                        print(f"Batch {batch_idx}: Loss = {metrics.get('loss/total', 0):.4f}")
+                        if self.use_wandb:
+                            wandb.log(metrics, step=epoch * len(train_loader) + batch_idx)
+                            
+                except Exception as batch_error:
+                    print(f"❌ Batch {batch_idx} 처리 중 오류: {batch_error}")
+                    if batch_idx == 0:  # 첫 번째 배치에서 오류면 중단
+                        print("첫 번째 배치부터 오류 발생. 학습을 중단합니다.")
+                        return 0
+                    continue  # 다른 배치는 건너뛰기
             
             # 검증
             val_metrics = self.validate(val_loader)
