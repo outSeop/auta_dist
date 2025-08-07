@@ -35,8 +35,18 @@ class FeatureAlignmentLoss(nn.Module):
             total_loss: 전체 특징 손실
             loss_dict: 레이어별 손실
         """
-        total_loss = 0
         loss_dict = {}
+        
+        # Feature가 없는 경우 처리
+        if not student_features or not teacher_features:
+            print("⚠️ Student 또는 Teacher features가 비어있음")
+            total_loss = torch.tensor(0.0, device=teacher_features[0].device if teacher_features else 'cpu')
+            loss_dict['feature_total'] = 0.0
+            return total_loss, loss_dict
+        
+        # Tensor로 초기화 (첫 번째 feature의 device 사용)
+        device = student_features[0].device
+        total_loss = torch.tensor(0.0, device=device)
         
         for idx, (s_feat, t_feat) in enumerate(zip(student_features, teacher_features)):
             # 크기 맞추기
@@ -64,8 +74,14 @@ class FeatureAlignmentLoss(nn.Module):
             total_loss += layer_loss
             loss_dict[f'feature_layer_{idx}'] = layer_loss.item()
         
-        loss_dict['feature_total'] = total_loss.item()
-        return total_loss / len(student_features), loss_dict
+        # Tensor인지 확인 후 item() 호출
+        if isinstance(total_loss, torch.Tensor):
+            loss_dict['feature_total'] = total_loss.item()
+            return total_loss / len(student_features), loss_dict
+        else:
+            print(f"⚠️ total_loss가 Tensor가 아님: {type(total_loss)}")
+            loss_dict['feature_total'] = float(total_loss)
+            return torch.tensor(float(total_loss), device=device) / len(student_features), loss_dict
     
     def spatial_attention(self, features):
         """Spatial attention map 생성"""

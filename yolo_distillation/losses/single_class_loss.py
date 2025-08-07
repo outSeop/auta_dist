@@ -274,6 +274,43 @@ class SingleClassDistillationLoss(nn.Module):
                         quality = ious.max(dim=1)[0]
                         quality_scores.append(quality)
         
+        elif isinstance(targets, dict):
+            # 딕셔너리 형태인 경우 - YOLODataset 표준 형태
+            print("🔍 딕셔너리 형태 targets 처리")
+            batch_idx = targets.get('batch_idx', None)
+            bboxes = targets.get('bboxes', None)
+            cls = targets.get('cls', None)
+            
+            if batch_idx is not None and bboxes is not None:
+                print(f"🔍 Batch indices: {batch_idx.shape if hasattr(batch_idx, 'shape') else batch_idx}")
+                print(f"🔍 BBoxes: {bboxes.shape if hasattr(bboxes, 'shape') else bboxes}")
+                print(f"🔍 Classes: {cls.shape if hasattr(cls, 'shape') else cls}")
+                
+                # 배치별로 GT 박스 그룹화
+                unique_batch_idx = torch.unique(batch_idx)
+                for batch_i in unique_batch_idx:
+                    # 현재 배치에 속하는 GT들
+                    mask = batch_idx == batch_i
+                    batch_bboxes = bboxes[mask]  # [num_gt, 4]
+                    
+                    if batch_bboxes.shape[0] > 0:
+                        batch_i_int = int(batch_i.item())
+                        # Teacher 예측과 GT 매칭
+                        teacher_conf = torch.sigmoid(objectness[batch_i_int])  # [N, 1]
+                        high_conf_idx = teacher_conf.squeeze(-1) > 0.5  # [N] for bbox indexing
+                        
+                        if high_conf_idx.any():
+                            teacher_boxes = bbox[batch_i_int][high_conf_idx]  # [num_valid, 4]
+                            
+                            # GT 박스가 있는 경우만 IoU 계산
+                            if batch_bboxes.shape[0] > 0:
+                                # 좌표 형식이 이미 xyxy인지 xywh인지 확인 필요
+                                ious = self.box_iou(teacher_boxes, batch_bboxes)
+                                quality = ious.max(dim=1)[0]
+                                quality_scores.append(quality)
+            else:
+                print("⚠️ batch_idx 또는 bboxes가 targets에 없음")
+                
         else:
             # 다른 형태인 경우 기본값 반환
             print(f"⚠️ 지원하지 않는 targets 형태: {type(targets)}")
