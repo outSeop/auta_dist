@@ -58,13 +58,10 @@ class SingleClassDistillationLoss(nn.Module):
         print(f"🔍 Student objectness shape: {student_obj.shape}")
         print(f"🔍 Teacher objectness shape: {teacher_obj.shape}")
         
-        # 차원 맞추기
+        # 지능적 차원 정렬 (정보 손실 최소화)
         if student_obj.shape != teacher_obj.shape:
-            # 더 작은 차원에 맞춰 조정
-            min_size = min(student_obj.shape[1], teacher_obj.shape[1])
-            student_obj = student_obj[:, :min_size, :]
-            teacher_obj = teacher_obj[:, :min_size, :]
-            print(f"🔧 차원 조정 후 - Student: {student_obj.shape}, Teacher: {teacher_obj.shape}")
+            teacher_obj, student_obj = self.align_outputs_intelligently(teacher_obj, student_obj)
+            print(f"🔧 지능적 차원 조정 후 - Student: {student_obj.shape}, Teacher: {teacher_obj.shape}")
         
         # Teacher의 objectness를 soft label로 사용
         try:
@@ -202,3 +199,39 @@ class SingleClassDistillationLoss(nn.Module):
                 quality_scores.mean()
             )
         return torch.tensor(0.0, device=student_bbox.device)
+    
+    def align_outputs_intelligently(self, teacher_out, student_out):
+        """
+        Teacher와 Student 출력을 지능적으로 정렬 (정보 손실 최소화)
+        """
+        print(f"🔧 정렬 전 - Teacher: {teacher_out.shape}, Student: {student_out.shape}")
+        
+        # Teacher가 더 작은 경우 (일반적인 경우)
+        if teacher_out.shape[1] < student_out.shape[1]:
+            # Teacher를 Student 크기로 확장 (interpolation)
+            teacher_expanded = F.interpolate(
+                teacher_out.transpose(1, 2),  # [B, 1, N] 
+                size=student_out.shape[1],    # Student 크기로 확장
+                mode='linear',
+                align_corners=False
+            ).transpose(1, 2)  # [B, N', 1]
+            
+            print(f"📈 Teacher 확장: {teacher_out.shape} → {teacher_expanded.shape}")
+            return teacher_expanded, student_out
+            
+        # Student가 더 작은 경우 
+        elif student_out.shape[1] < teacher_out.shape[1]:
+            # Student를 Teacher 크기로 확장
+            student_expanded = F.interpolate(
+                student_out.transpose(1, 2),
+                size=teacher_out.shape[1],
+                mode='linear', 
+                align_corners=False
+            ).transpose(1, 2)
+            
+            print(f"📈 Student 확장: {student_out.shape} → {student_expanded.shape}")
+            return teacher_out, student_expanded
+            
+        else:
+            # 이미 같은 크기
+            return teacher_out, student_out
