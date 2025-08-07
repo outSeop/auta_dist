@@ -265,7 +265,7 @@ class FigmaUIDistillation:
         
         # 데이터로더가 없는 경우 YOLO 기본 학습 방식 사용
         if train_loader is None:
-            print("커스텀 데이터로더 생성 실패.")
+            print("커스텀 데이터로더 생성 실패. YOLO 기본 학습 방식을 사용합니다.")
             return 0
             # return self._train_with_yolo_default(epochs, batch_size, learning_rate, save_dir)
         
@@ -351,92 +351,78 @@ class FigmaUIDistillation:
     
     def _create_dataloaders(self, batch_size, num_workers):
         """
-        YOLO 데이터로더를 직접 생성 (버전 호환성 개선)
+        YOLO 데이터로더를 직접 생성
         """
         try:
+            from ultralytics.models.yolo.detect.train import DetectionTrainer
+            from ultralytics.utils import DEFAULT_CFG
+            from ultralytics.cfg import get_cfg
             import yaml
-            import os
-            from pathlib import Path
             
-            print("커스텀 데이터로더 생성을 시도합니다...")
+            print("🔄 실제 작동하는 커스텀 데이터로더 생성을 시도합니다...")
             
             # 데이터셋 설정 로드
             with open(self.modified_data_yaml, 'r') as f:
                 data_config = yaml.safe_load(f)
             
-            # 데이터셋 경로 확인
-            data_path = data_config.get('path', '.')
-            train_path = os.path.join(data_path, data_config.get('train', 'train'))
-            val_path = os.path.join(data_path, data_config.get('val', 'val'))
+            # YOLO Trainer 방식으로 설정 생성 (실제 작동 방식)
+            cfg = get_cfg(DEFAULT_CFG)
+            cfg.update({
+                'data': self.modified_data_yaml,
+                'batch': batch_size,
+                'workers': num_workers,
+                'imgsz': 640,
+                'device': self.device
+            })
             
-            # 경로 존재 여부 확인
-            if not os.path.exists(train_path):
-                print(f"학습 데이터 경로를 찾을 수 없습니다: {train_path}")
-                return None, None
+            # DetectionTrainer 인스턴스 생성 (YOLO 내부 방식)
+            trainer = DetectionTrainer(cfg)
+            trainer.data = data_config
             
-            # 더 간단한 방식으로 데이터로더 생성 시도
+            # Student 모델을 trainer에 설정
+            trainer.model = self.student.model
+            
+            # 데이터로더 생성 (YOLO 내부 메서드 사용)
+            train_path = data_config.get('train', 'train')
+            val_path = data_config.get('val', 'val')
+            
+            # 학습용 데이터로더
+            train_loader = None
             try:
-                from ultralytics.data.dataset import YOLODataset
-                from torch.utils.data import DataLoader
-                
-                # YOLO 데이터셋 생성
-                train_dataset = YOLODataset(
-                    img_path=train_path,
-                    imgsz=640,
+                train_loader = trainer.get_dataloader(
+                    dataset_path=train_path,
                     batch_size=batch_size,
-                    augment=True,
-                    hyp=None,
-                    rect=False,
-                    cache=False,
-                    single_cls=True,  # 단일 클래스
-                    stride=32,
-                    pad=0.0,
-                    prefix='train: '
+                    rank=0,  # single GPU
+                    mode='train'
                 )
-                
-                train_loader = DataLoader(
-                    train_dataset,
+                print(f"✅ 학습 데이터로더 생성 성공: {len(train_loader)} batches")
+            except Exception as e:
+                print(f"❌ 학습 데이터로더 생성 실패: {e}")
+            
+            # 검증용 데이터로더  
+            val_loader = None
+            try:
+                val_loader = trainer.get_dataloader(
+                    dataset_path=val_path,
                     batch_size=batch_size,
-                    shuffle=True,
-                    num_workers=num_workers,
-                    pin_memory=True,
-                    drop_last=True
+                    rank=0,
+                    mode='val'
                 )
-                
-                # 검증 데이터셋
-                val_loader = None
-                if os.path.exists(val_path):
-                    val_dataset = YOLODataset(
-                        img_path=val_path,
-                        imgsz=640,
-                        batch_size=batch_size,
-                        augment=False,
-                        hyp=None,
-                        rect=True,
-                        cache=False,
-                        single_cls=True,
-                        stride=32,
-                        pad=0.5,
-                        prefix='val: '
-                    )
-                    
-                    val_loader = DataLoader(
-                        val_dataset,
-                        batch_size=batch_size,
-                        shuffle=False,
-                        num_workers=num_workers,
-                        pin_memory=True,
-                        drop_last=False
-                    )
-                
-                print("커스텀 데이터로더 생성 성공!")
+                print(f"✅ 검증 데이터로더 생성 성공: {len(val_loader)} batches")
+            except Exception as e:
+                print(f"❌ 검증 데이터로더 생성 실패: {e}")
+            
+            if train_loader is not None:
+                print("🎉 커스텀 데이터로더 생성 완료!")
                 return train_loader, val_loader
-                
-            except ImportError as ie:
-                print(f"YOLO 데이터셋 import 오류: {ie}")
+            else:
+                print("⚠️ 데이터로더 생성 실패")
                 return None, None
                 
+        except ImportError as ie:
+            print(f"❌ YOLO 모듈 import 오류: {ie}")
+            return None, None
         except Exception as e:
-            print(f"데이터로더 생성 중 오류: {e}")
-            print("YOLO 기본 학습 방식을 사용합니다.")
+            print(f"❌ 데이터로더 생성 중 전체 오류: {e}")
+            print("💡 DetectionTrainer 방식도 실패 - YOLO 기본 학습으로 폴백합니다")
             return None, None
