@@ -265,7 +265,7 @@ class FigmaUIDistillation:
         
         # 데이터로더가 없는 경우 YOLO 기본 학습 방식 사용
         if train_loader is None:
-            print("커스텀 데이터로더 생성 실패. YOLO 기본 학습 방식을 사용합니다.")
+            print("커스텀 데이터로더 생성 실패.")
             return 0
             # return self._train_with_yolo_default(epochs, batch_size, learning_rate, save_dir)
         
@@ -351,52 +351,92 @@ class FigmaUIDistillation:
     
     def _create_dataloaders(self, batch_size, num_workers):
         """
-        YOLO 데이터로더를 직접 생성
+        YOLO 데이터로더를 직접 생성 (버전 호환성 개선)
         """
         try:
-            from ultralytics.data import build_dataloader
-            from ultralytics.utils import DEFAULT_CFG
             import yaml
+            import os
+            from pathlib import Path
+            
+            print("커스텀 데이터로더 생성을 시도합니다...")
             
             # 데이터셋 설정 로드
             with open(self.modified_data_yaml, 'r') as f:
                 data_config = yaml.safe_load(f)
             
-            # YOLO 기본 설정 사용
-            cfg = DEFAULT_CFG.copy()
-            cfg.update({
-                'batch': batch_size,
-                'workers': num_workers,
-                'data': self.modified_data_yaml
-            })
+            # 데이터셋 경로 확인
+            data_path = data_config.get('path', '.')
+            train_path = os.path.join(data_path, data_config.get('train', 'train'))
+            val_path = os.path.join(data_path, data_config.get('val', 'val'))
             
-            print("커스텀 데이터로더 생성을 시도합니다...")
+            # 경로 존재 여부 확인
+            if not os.path.exists(train_path):
+                print(f"학습 데이터 경로를 찾을 수 없습니다: {train_path}")
+                return None, None
             
-            # 학습용 데이터로더 생성
-            train_loader = build_dataloader(
-                dataset=data_config.get('train', 'train'),
-                batch_size=batch_size,
-                workers=num_workers,
-                shuffle=True,
-                augment=True
-            )[0] if 'train' in data_config else None
-            
-            # 검증용 데이터로더 생성  
-            val_loader = build_dataloader(
-                dataset=data_config.get('val', 'val'),
-                batch_size=batch_size,
-                workers=num_workers,
-                shuffle=False,
-                augment=False
-            )[0] if 'val' in data_config else None
-            
-            if train_loader is not None:
+            # 더 간단한 방식으로 데이터로더 생성 시도
+            try:
+                from ultralytics.data.dataset import YOLODataset
+                from torch.utils.data import DataLoader
+                
+                # YOLO 데이터셋 생성
+                train_dataset = YOLODataset(
+                    img_path=train_path,
+                    imgsz=640,
+                    batch_size=batch_size,
+                    augment=True,
+                    hyp=None,
+                    rect=False,
+                    cache=False,
+                    single_cls=True,  # 단일 클래스
+                    stride=32,
+                    pad=0.0,
+                    prefix='train: '
+                )
+                
+                train_loader = DataLoader(
+                    train_dataset,
+                    batch_size=batch_size,
+                    shuffle=True,
+                    num_workers=num_workers,
+                    pin_memory=True,
+                    drop_last=True
+                )
+                
+                # 검증 데이터셋
+                val_loader = None
+                if os.path.exists(val_path):
+                    val_dataset = YOLODataset(
+                        img_path=val_path,
+                        imgsz=640,
+                        batch_size=batch_size,
+                        augment=False,
+                        hyp=None,
+                        rect=True,
+                        cache=False,
+                        single_cls=True,
+                        stride=32,
+                        pad=0.5,
+                        prefix='val: '
+                    )
+                    
+                    val_loader = DataLoader(
+                        val_dataset,
+                        batch_size=batch_size,
+                        shuffle=False,
+                        num_workers=num_workers,
+                        pin_memory=True,
+                        drop_last=False
+                    )
+                
                 print("커스텀 데이터로더 생성 성공!")
                 return train_loader, val_loader
-            else:
-                print("데이터셋 경로를 찾을 수 없습니다.")
+                
+            except ImportError as ie:
+                print(f"YOLO 데이터셋 import 오류: {ie}")
                 return None, None
                 
         except Exception as e:
             print(f"데이터로더 생성 중 오류: {e}")
+            print("YOLO 기본 학습 방식을 사용합니다.")
             return None, None
