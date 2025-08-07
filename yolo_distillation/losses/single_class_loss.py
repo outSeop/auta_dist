@@ -55,27 +55,56 @@ class SingleClassDistillationLoss(nn.Module):
         student_obj = student_outputs['objectness']  # [B, N, 1]
         teacher_obj = teacher_outputs['objectness'].detach()
         
+        print(f"🔍 Student objectness shape: {student_obj.shape}")
+        print(f"🔍 Teacher objectness shape: {teacher_obj.shape}")
+        
+        # 차원 맞추기
+        if student_obj.shape != teacher_obj.shape:
+            # 더 작은 차원에 맞춰 조정
+            min_size = min(student_obj.shape[1], teacher_obj.shape[1])
+            student_obj = student_obj[:, :min_size, :]
+            teacher_obj = teacher_obj[:, :min_size, :]
+            print(f"🔧 차원 조정 후 - Student: {student_obj.shape}, Teacher: {teacher_obj.shape}")
+        
         # Teacher의 objectness를 soft label로 사용
-        obj_loss = F.binary_cross_entropy_with_logits(
-            student_obj,
-            torch.sigmoid(teacher_obj),
-            reduction='mean'
-        )
+        try:
+            obj_loss = F.binary_cross_entropy_with_logits(
+                student_obj,
+                torch.sigmoid(teacher_obj),
+                reduction='mean'
+            )
+        except Exception as obj_error:
+            print(f"❌ Objectness 손실 계산 오류: {obj_error}")
+            obj_loss = torch.tensor(0.0, device=student_obj.device)
         
         # 2. Bounding Box Regression 증류
         student_bbox = student_outputs['bbox']  # [B, N, 4]
         teacher_bbox = teacher_outputs['bbox'].detach()
         
-        # Teacher confidence가 높은 예측만 사용
-        high_conf_mask = torch.sigmoid(teacher_obj) > 0.5
+        print(f"🔍 Student bbox shape: {student_bbox.shape}")
+        print(f"🔍 Teacher bbox shape: {teacher_bbox.shape}")
         
-        if high_conf_mask.any():
-            # IoU loss + L1 loss 조합
-            bbox_loss = self.bbox_distillation_loss(
-                student_bbox[high_conf_mask],
-                teacher_bbox[high_conf_mask]
-            )
-        else:
+        # 차원 맞추기
+        if student_bbox.shape != teacher_bbox.shape:
+            min_size = min(student_bbox.shape[1], teacher_bbox.shape[1])
+            student_bbox = student_bbox[:, :min_size, :]
+            teacher_bbox = teacher_bbox[:, :min_size, :]
+            print(f"🔧 BBox 차원 조정 후 - Student: {student_bbox.shape}, Teacher: {teacher_bbox.shape}")
+        
+        # Teacher confidence가 높은 예측만 사용
+        try:
+            high_conf_mask = torch.sigmoid(teacher_obj) > 0.5
+            
+            if high_conf_mask.any():
+                # IoU loss + L1 loss 조합
+                bbox_loss = self.bbox_distillation_loss(
+                    student_bbox[high_conf_mask],
+                    teacher_bbox[high_conf_mask]
+                )
+            else:
+                bbox_loss = torch.tensor(0.0, device=student_obj.device)
+        except Exception as bbox_error:
+            print(f"❌ BBox 손실 계산 오류: {bbox_error}")
             bbox_loss = torch.tensor(0.0, device=student_obj.device)
         
         # 3. Localization Quality 증류

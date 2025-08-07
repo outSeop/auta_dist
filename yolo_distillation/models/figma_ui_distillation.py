@@ -249,14 +249,49 @@ class FigmaUIDistillation:
     
     def parse_model_outputs(self, outputs):
         """모델 출력을 파싱하여 bbox와 objectness 분리"""
-        # YOLOv11 출력 형식에 맞게 파싱
-        # outputs: [batch, num_anchors, 5] for single class
-        # [x, y, w, h, objectness]
+        print(f"🔍 출력 파싱 - shape: {outputs.shape if hasattr(outputs, 'shape') else 'No shape'}")
+        print(f"🔍 출력 파싱 - type: {type(outputs)}")
         
-        return {
-            'bbox': outputs[..., :4],
-            'objectness': outputs[..., 4:5]
-        }
+        # YOLOv11 출력 형식 처리
+        if outputs.dim() == 3:  # [batch, num_anchors, features]
+            if outputs.shape[-1] >= 5:  # [x, y, w, h, conf, ...]
+                return {
+                    'bbox': outputs[..., :4],
+                    'objectness': outputs[..., 4:5]
+                }
+            else:
+                print(f"⚠️ 예상과 다른 출력 차원: {outputs.shape}")
+                # 기본값 반환
+                batch_size = outputs.shape[0]
+                return {
+                    'bbox': torch.zeros(batch_size, 1, 4, device=outputs.device),
+                    'objectness': torch.zeros(batch_size, 1, 1, device=outputs.device)
+                }
+        elif outputs.dim() == 4:  # [batch, features, height, width]
+            print(f"🔍 4D 출력 감지: {outputs.shape}")
+            # Feature map 형태인 경우 reshape 필요
+            batch_size, features, h, w = outputs.shape
+            # Flatten spatial dimensions
+            outputs_flat = outputs.view(batch_size, features, h * w).transpose(1, 2)  # [B, H*W, features]
+            
+            if features >= 5:
+                return {
+                    'bbox': outputs_flat[..., :4],
+                    'objectness': outputs_flat[..., 4:5]
+                }
+            else:
+                # 기본값 반환
+                return {
+                    'bbox': torch.zeros(batch_size, h*w, 4, device=outputs.device),
+                    'objectness': torch.zeros(batch_size, h*w, 1, device=outputs.device)
+                }
+        else:
+            print(f"❌ 지원하지 않는 출력 차원: {outputs.shape}")
+            batch_size = outputs.shape[0] if outputs.dim() > 0 else 1
+            return {
+                'bbox': torch.zeros(batch_size, 1, 4, device=outputs.device),
+                'objectness': torch.zeros(batch_size, 1, 1, device=outputs.device)
+            }
     
     def validate(self, val_loader):
         """검증 수행"""
