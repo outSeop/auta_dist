@@ -10,10 +10,10 @@ from yolo_distillation.models.figma_ui_distillation import FigmaUIDistillation
 if __name__ == "__main__":
     # Figma UI 검증을 위한 증류 설정
     config = {
-        'teacher_model': 'weight/best_forest.pt',  # 사전 학습된 Teacher
+        'teacher_model': '/content/auta_dist/weight/best_forest.pt',  # 사전 학습된 Teacher
         'student_model': 'yolo11s.yaml',  # Student 모델 (s 또는 m)
-        'data_yaml': 'figma_ui_dataset.yaml',  # Figma UI 데이터셋
-        'epochs': 100,
+        'data_yaml': '/content/drive/MyDrive/Colab Notebooks/AUTA/data/yolo_dataset_webforest/data.yaml',  # Figma UI 데이터셋
+        'epochs': 10,
         'batch_size': 16,
         'learning_rate': 0.001,
         'num_workers': 8
@@ -29,15 +29,13 @@ if __name__ == "__main__":
         )
     except Exception as e:
         print(f"모델 초기화 중 오류 발생: {e}")
-        print("기본 설정으로 재시도합니다...")
-        
-        # 기본 설정으로 재시도
-        distiller = FigmaUIDistillation(
-            teacher_model='yolov11l.pt',  # 기본 사전학습 모델
-            student_model='yolov11s.pt',  # 기본 Student 모델
-            data_yaml=config['data_yaml'],
-            use_wandb=False
-        )
+        # # 기본 설정으로 재시도
+        # distiller = FigmaUIDistillation(
+        #     teacher_model='yolov11l.pt',  # 기본 사전학습 모델
+        #     student_model='yolov11s.pt',  # 기본 Student 모델
+        #     data_yaml=config['data_yaml'],
+        #     use_wandb=False
+        # )
     
     try:
         best_map = distiller.train(
