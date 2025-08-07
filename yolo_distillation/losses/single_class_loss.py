@@ -115,6 +115,10 @@ class SingleClassDistillationLoss(nn.Module):
         
         # 3. Localization Quality 증류
         # Teacher의 localization quality를 전달
+        print(f"🔍 Forward에서 targets 전달 - 타입: {type(targets)}")
+        if hasattr(targets, 'shape'):
+            print(f"🔍 Forward에서 targets shape: {targets.shape}")
+        
         loc_quality = self.compute_localization_quality(
             teacher_bbox, teacher_obj, targets
         )
@@ -217,20 +221,63 @@ class SingleClassDistillationLoss(nn.Module):
         # Teacher 예측과 GT 간의 IoU를 quality score로 사용
         quality_scores = []
         
-        for i in range(len(targets)):
-            if len(targets[i]) > 0:
-                # Teacher 예측과 GT 매칭
-                teacher_conf = torch.sigmoid(objectness[i])  # [N, 1]
-                high_conf_idx = teacher_conf.squeeze(-1) > 0.5  # [N] for bbox indexing
-                
-                if high_conf_idx.any():
-                    teacher_boxes = bbox[i][high_conf_idx]  # [num_valid, 4]
-                    gt_boxes = targets[i][:, 1:5]  # [class, x, y, w, h] 형식 가정
+        print(f"🔍 Targets 타입: {type(targets)}")
+        print(f"🔍 Targets 형태: {targets.shape if hasattr(targets, 'shape') else 'No shape'}")
+        if hasattr(targets, 'keys'):
+            print(f"🔍 Targets keys: {targets.keys()}")
+        if isinstance(targets, (list, tuple)):
+            print(f"🔍 Targets 길이: {len(targets)}")
+            if len(targets) > 0:
+                print(f"🔍 첫 번째 Target 타입: {type(targets[0])}")
+                print(f"🔍 첫 번째 Target: {targets[0]}")
+        
+        # targets 형태에 따른 처리
+        if isinstance(targets, torch.Tensor):
+            # Tensor 형태인 경우 배치별로 처리
+            batch_size = targets.shape[0] if targets.dim() > 0 else 1
+            for i in range(batch_size):
+                if targets.dim() > 1 and targets.shape[1] > 0:
+                        target_i = targets[i] if targets.dim() > 1 else targets
+                        if len(target_i.shape) > 0 and target_i.shape[0] > 0:
+                            # Teacher 예측과 GT 매칭
+                            teacher_conf = torch.sigmoid(objectness[i])  # [N, 1]
+                            high_conf_idx = teacher_conf.squeeze(-1) > 0.5  # [N] for bbox indexing
+                            
+                            if high_conf_idx.any():
+                                teacher_boxes = bbox[i][high_conf_idx]  # [num_valid, 4]
+                                # targets가 [batch, max_labels, 6] 형태일 수 있음 (class, x, y, w, h, conf)
+                                if target_i.shape[-1] >= 5:
+                                    gt_boxes = target_i[:, 1:5] if target_i.shape[-1] > 5 else target_i[:, :4]  
+                                else:
+                                    gt_boxes = target_i[:, :4]  # 이미 bbox만 있는 경우
+                                
+                                # GT 박스가 있는 경우만 IoU 계산
+                                if gt_boxes.shape[0] > 0:
+                                    ious = self.box_iou(teacher_boxes, gt_boxes)
+                                    quality = ious.max(dim=1)[0]
+                                    quality_scores.append(quality)
+        
+        elif isinstance(targets, (list, tuple)):
+            # List 형태인 경우
+            for i in range(len(targets)):
+                if len(targets[i]) > 0:
+                    # Teacher 예측과 GT 매칭
+                    teacher_conf = torch.sigmoid(objectness[i])  # [N, 1]
+                    high_conf_idx = teacher_conf.squeeze(-1) > 0.5  # [N] for bbox indexing
                     
-                    # IoU 계산하여 quality score 생성
-                    ious = self.box_iou(teacher_boxes, gt_boxes)
-                    quality = ious.max(dim=1)[0]
-                    quality_scores.append(quality)
+                    if high_conf_idx.any():
+                        teacher_boxes = bbox[i][high_conf_idx]  # [num_valid, 4]
+                        gt_boxes = targets[i][:, 1:5] if targets[i].shape[-1] > 4 else targets[i][:, :4]
+                        
+                        # IoU 계산하여 quality score 생성
+                        ious = self.box_iou(teacher_boxes, gt_boxes)
+                        quality = ious.max(dim=1)[0]
+                        quality_scores.append(quality)
+        
+        else:
+            # 다른 형태인 경우 기본값 반환
+            print(f"⚠️ 지원하지 않는 targets 형태: {type(targets)}")
+            return torch.tensor(0.0, device=bbox.device)
         
         if quality_scores:
             return torch.cat(quality_scores)
