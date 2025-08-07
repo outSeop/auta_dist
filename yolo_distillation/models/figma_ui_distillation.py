@@ -354,69 +354,109 @@ class FigmaUIDistillation:
         YOLO 데이터로더를 직접 생성
         """
         try:
-            from ultralytics.models.yolo.detect.train import DetectionTrainer
-            from ultralytics.utils import DEFAULT_CFG
-            from ultralytics.cfg import get_cfg
+            from ultralytics.data.dataset import YOLODataset
+            from torch.utils.data import DataLoader
             import yaml
+            import os
+            from pathlib import Path
             
-            print("🔄 실제 작동하는 커스텀 데이터로더 생성을 시도합니다...")
+            print("🔄 버전 호환성 문제를 피한 직접 데이터로더 생성을 시도합니다...")
             
             # 데이터셋 설정 로드
             with open(self.modified_data_yaml, 'r') as f:
                 data_config = yaml.safe_load(f)
             
-            # YOLO Trainer 방식으로 설정 생성 (실제 작동 방식)
-            cfg = get_cfg(DEFAULT_CFG)
-            cfg.update({
-                'data': self.modified_data_yaml,
-                'batch': batch_size,
-                'workers': num_workers,
-                'imgsz': 640,
-                'device': self.device
-            })
+            # 데이터셋 경로 확인
+            data_path = data_config.get('path', './datasets/figma_ui')
+            train_path = os.path.join(data_path, data_config.get('train', 'images/train'))
+            val_path = os.path.join(data_path, data_config.get('val', 'images/val'))
             
-            # DetectionTrainer 인스턴스 생성 (YOLO 내부 방식)
-            trainer = DetectionTrainer(cfg)
-            trainer.data = data_config
+            print(f"📁 데이터셋 경로: {data_path}")
+            print(f"📁 학습 경로: {train_path}")
+            print(f"📁 검증 경로: {val_path}")
             
-            # Student 모델을 trainer에 설정
-            trainer.model = self.student.model
+            # 경로 존재 여부 확인
+            if not os.path.exists(train_path):
+                print(f"❌ 학습 데이터 경로를 찾을 수 없습니다: {train_path}")
+                return None, None
             
-            # 데이터로더 생성 (YOLO 내부 메서드 사용)
-            train_path = data_config.get('train', 'train')
-            val_path = data_config.get('val', 'val')
+            # 이미지 파일 확인
+            image_files = []
+            for ext in ['*.jpg', '*.jpeg', '*.png', '*.bmp']:
+                image_files.extend(Path(train_path).glob(ext))
             
-            # 학습용 데이터로더
-            train_loader = None
+            if not image_files:
+                print(f"❌ {train_path}에서 이미지 파일을 찾을 수 없습니다.")
+                return None, None
+            
+            print(f"✅ {len(image_files)}개의 이미지 파일을 찾았습니다.")
+            
+            # 직접 YOLO 데이터셋 생성 (버전 호환성 문제 회피)
             try:
-                train_loader = trainer.get_dataloader(
-                    dataset_path=train_path,
+                # 학습용 데이터셋
+                train_dataset = YOLODataset(
+                    img_path=train_path,
+                    data=data_config,
+                    task='detect',
+                    imgsz=640,
                     batch_size=batch_size,
-                    rank=0,  # single GPU
-                    mode='train'
+                    augment=True,
+                    cache=False,
+                    single_cls=True,  # 단일 클래스
+                    stride=32,
+                    pad=0.0,
+                    rect=False
                 )
+                
+                train_loader = DataLoader(
+                    train_dataset,
+                    batch_size=batch_size,
+                    shuffle=True,
+                    num_workers=num_workers,
+                    pin_memory=True,
+                    drop_last=True,
+                    collate_fn=train_dataset.collate_fn
+                )
+                
                 print(f"✅ 학습 데이터로더 생성 성공: {len(train_loader)} batches")
-            except Exception as e:
-                print(f"❌ 학습 데이터로더 생성 실패: {e}")
-            
-            # 검증용 데이터로더  
-            val_loader = None
-            try:
-                val_loader = trainer.get_dataloader(
-                    dataset_path=val_path,
-                    batch_size=batch_size,
-                    rank=0,
-                    mode='val'
-                )
-                print(f"✅ 검증 데이터로더 생성 성공: {len(val_loader)} batches")
-            except Exception as e:
-                print(f"❌ 검증 데이터로더 생성 실패: {e}")
-            
-            if train_loader is not None:
-                print("🎉 커스텀 데이터로더 생성 완료!")
+                
+                # 검증용 데이터셋
+                val_loader = None
+                if os.path.exists(val_path):
+                    try:
+                        val_dataset = YOLODataset(
+                            img_path=val_path,
+                            data=data_config,
+                            task='detect',
+                            imgsz=640,
+                            batch_size=batch_size,
+                            augment=False,
+                            cache=False,
+                            single_cls=True,
+                            stride=32,
+                            pad=0.5,
+                            rect=True
+                        )
+                        
+                        val_loader = DataLoader(
+                            val_dataset,
+                            batch_size=batch_size,
+                            shuffle=False,
+                            num_workers=num_workers,
+                            pin_memory=True,
+                            drop_last=False,
+                            collate_fn=val_dataset.collate_fn
+                        )
+                        
+                        print(f"✅ 검증 데이터로더 생성 성공: {len(val_loader)} batches")
+                    except Exception as val_e:
+                        print(f"⚠️ 검증 데이터로더 생성 실패: {val_e}")
+                
+                print("🎉 직접 데이터로더 생성 완료!")
                 return train_loader, val_loader
-            else:
-                print("⚠️ 데이터로더 생성 실패")
+                
+            except Exception as dataset_e:
+                print(f"❌ YOLO 데이터셋 생성 실패: {dataset_e}")
                 return None, None
                 
         except ImportError as ie:
@@ -424,5 +464,5 @@ class FigmaUIDistillation:
             return None, None
         except Exception as e:
             print(f"❌ 데이터로더 생성 중 전체 오류: {e}")
-            print("💡 DetectionTrainer 방식도 실패 - YOLO 기본 학습으로 폴백합니다")
+            print("💡 직접 데이터로더 생성도 실패 - YOLO 기본 학습으로 폴백합니다")
             return None, None
