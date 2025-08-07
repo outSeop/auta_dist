@@ -81,12 +81,10 @@ class SingleClassDistillationLoss(nn.Module):
         print(f"🔍 Student bbox shape: {student_bbox.shape}")
         print(f"🔍 Teacher bbox shape: {teacher_bbox.shape}")
         
-        # 차원 맞추기
+        # 지능적 차원 정렬 (BBox도 동일하게)
         if student_bbox.shape != teacher_bbox.shape:
-            min_size = min(student_bbox.shape[1], teacher_bbox.shape[1])
-            student_bbox = student_bbox[:, :min_size, :]
-            teacher_bbox = teacher_bbox[:, :min_size, :]
-            print(f"🔧 BBox 차원 조정 후 - Student: {student_bbox.shape}, Teacher: {teacher_bbox.shape}")
+            teacher_bbox, student_bbox = self.align_outputs_intelligently(teacher_bbox, student_bbox)
+            print(f"🔧 BBox 지능적 차원 조정 후 - Student: {student_bbox.shape}, Teacher: {teacher_bbox.shape}")
         
         # Teacher confidence가 높은 예측만 사용
         try:
@@ -206,25 +204,34 @@ class SingleClassDistillationLoss(nn.Module):
         """
         print(f"🔧 정렬 전 - Teacher: {teacher_out.shape}, Student: {student_out.shape}")
         
+        # 다차원 텐서 안전하게 처리
+        batch_size = teacher_out.shape[0]
+        teacher_seq_len = teacher_out.shape[1]
+        student_seq_len = student_out.shape[1]
+        feature_dim = teacher_out.shape[2]  # objectness: 1, bbox: 4
+        
         # Teacher가 더 작은 경우 (일반적인 경우)
-        if teacher_out.shape[1] < student_out.shape[1]:
+        if teacher_seq_len < student_seq_len:
             # Teacher를 Student 크기로 확장 (interpolation)
+            # [B, seq, feat] → [B, feat, seq] → interpolate → [B, feat, new_seq] → [B, new_seq, feat]
+            teacher_transposed = teacher_out.transpose(1, 2)  # [B, feat, seq]
             teacher_expanded = F.interpolate(
-                teacher_out.transpose(1, 2),  # [B, 1, N] 
-                size=student_out.shape[1],    # Student 크기로 확장
+                teacher_transposed,
+                size=student_seq_len,
                 mode='linear',
                 align_corners=False
-            ).transpose(1, 2)  # [B, N', 1]
+            ).transpose(1, 2)  # [B, new_seq, feat]
             
             print(f"📈 Teacher 확장: {teacher_out.shape} → {teacher_expanded.shape}")
             return teacher_expanded, student_out
             
         # Student가 더 작은 경우 
-        elif student_out.shape[1] < teacher_out.shape[1]:
+        elif student_seq_len < teacher_seq_len:
             # Student를 Teacher 크기로 확장
+            student_transposed = student_out.transpose(1, 2)
             student_expanded = F.interpolate(
-                student_out.transpose(1, 2),
-                size=teacher_out.shape[1],
+                student_transposed,
+                size=teacher_seq_len,
                 mode='linear', 
                 align_corners=False
             ).transpose(1, 2)
@@ -234,4 +241,5 @@ class SingleClassDistillationLoss(nn.Module):
             
         else:
             # 이미 같은 크기
+            print(f"✅ 크기 동일: {teacher_out.shape}")
             return teacher_out, student_out
