@@ -201,12 +201,14 @@ class FigmaUIDistillation:
             
             # Student 추론
             print("🔍 Student 추론 시작...")
-            student_outputs = self.student.model(images)
-            print(f"🔍 Student 출력 타입: {type(student_outputs)}")
-            if isinstance(student_outputs, (list, tuple)):
-                print(f"🔍 Student 출력 개수: {len(student_outputs)}")
-                student_outputs = student_outputs[0] if len(student_outputs) > 0 else student_outputs
-            student_outputs = self.parse_model_outputs(student_outputs)
+            raw_student_preds = self.student.model(images)  # 원본 예측 보관
+            print(f"🔍 Student 출력 타입: {type(raw_student_preds)}")
+            if isinstance(raw_student_preds, (list, tuple)):
+                print(f"🔍 Student 출력 개수: {len(raw_student_preds)}")
+                student_outputs_for_parsing = raw_student_preds[0] if len(raw_student_preds) > 0 else raw_student_preds
+            else:
+                student_outputs_for_parsing = raw_student_preds
+            student_outputs = self.parse_model_outputs(student_outputs_for_parsing)  # KD용 파싱
             student_features = []  # 임시로 빈 리스트
             
         except Exception as model_error:
@@ -246,7 +248,9 @@ class FigmaUIDistillation:
         
         # 3. 원본 YOLO 손실 (Ground Truth 기반)
         try:
-            base_loss = self.student.model.loss(student_outputs, targets)
+            # 원본 배치 딕셔너리 준비 (이미지를 GPU 텐서로 교체)
+            batch_for_loss = {**batch, 'img': images}
+            base_loss = self.student.model.loss(raw_student_preds, batch_for_loss)
             print(f"✅ Base 손실 계산 성공: {base_loss.item():.4f}")
         except Exception as base_error:
             import traceback
