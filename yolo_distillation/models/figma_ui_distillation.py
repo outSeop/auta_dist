@@ -167,7 +167,7 @@ class FigmaUIDistillation:
                 images = images.float() / 255.0  # uint8 -> float32, [0,255] -> [0,1]
             images = images.to(self.device)
             
-            print(f"🔍 이미지 shape: {images.shape}, dtype: {images.dtype}, device: {images.device}")
+            # print(f"🔍 이미지 shape: {images.shape}, dtype: {images.dtype}, device: {images.device}")
             
             # YOLO 배치에서 타겟 추출 (다양한 키 확인)
             if 'batch_idx' in batch:
@@ -176,7 +176,7 @@ class FigmaUIDistillation:
                 targets = batch  # 분리된 형태
             else:
                 # 배치 키 확인을 위한 디버깅
-                print(f"🔍 배치 키: {list(batch.keys())}")
+                # print(f"🔍 배치 키: {list(batch.keys())}")
                 targets = batch
         else:
             # 배치가 튜플이나 리스트인 경우
@@ -187,8 +187,8 @@ class FigmaUIDistillation:
             targets = batch[1] if len(batch) > 1 else None
         
         # 모델 디바이스 확인
-        print(f"🔍 Teacher model device: {next(self.teacher.model.parameters()).device}")
-        print(f"🔍 Student model device: {next(self.student.model.parameters()).device}")
+        # print(f"🔍 Teacher model device: {next(self.teacher.model.parameters()).device}")
+        # print(f"🔍 Student model device: {next(self.student.model.parameters()).device}")
         
         # 모델을 올바른 디바이스로 이동
         self.teacher.model = self.teacher.model.to(self.device)
@@ -197,35 +197,35 @@ class FigmaUIDistillation:
         try:
             # Teacher 추론 (no gradient)
             with torch.no_grad():
-                print("🔍 Teacher 추론 시작...")
+                # print("🔍 Teacher 추론 시작...")
                 teacher_outputs = self.teacher.model(images)
-                print(f"🔍 Teacher 출력 타입: {type(teacher_outputs)}")
+                # print(f"🔍 Teacher 출력 타입: {type(teacher_outputs)}")
                 if isinstance(teacher_outputs, (list, tuple)):
-                    print(f"🔍 Teacher 출력 개수: {len(teacher_outputs)}")
+                    # print(f"🔍 Teacher 출력 개수: {len(teacher_outputs)}")
                     teacher_outputs = teacher_outputs[0] if len(teacher_outputs) > 0 else teacher_outputs
                 teacher_outputs = self.parse_model_outputs(teacher_outputs)
                 teacher_features = []  # 임시로 빈 리스트
             
             # Student 추론
-            print("🔍 Student 추론 시작...")
+            # print("🔍 Student 추론 시작...")
             raw_student_preds = self.student.model(images)  # 원본 예측 보관
-            print(f"🔍 Student 출력 타입: {type(raw_student_preds)}")
+            # print(f"🔍 Student 출력 타입: {type(raw_student_preds)}")
             
             # 원본 예측 구조 상세 디버깅
             if isinstance(raw_student_preds, (list, tuple)):
-                print(f"🔍 Student 출력 개수: {len(raw_student_preds)}")
+                # print(f"🔍 Student 출력 개수: {len(raw_student_preds)}")
                 for i, item in enumerate(raw_student_preds):
-                    print(f"🔍 Student 출력[{i}] 타입: {type(item)}")
+                    # print(f"🔍 Student 출력[{i}] 타입: {type(item)}")
                     if hasattr(item, 'shape'):
-                        print(f"🔍 Student 출력[{i}] 형태: {item.shape}")
+                        # print(f"🔍 Student 출력[{i}] 형태: {item.shape}")
                 
                 # 텐서만 필터링하여 YOLO 손실에 전달
                 tensor_preds = [item for item in raw_student_preds if hasattr(item, 'view')]
-                print(f"🔍 텐서 예측 개수: {len(tensor_preds)}")
+                # print(f"🔍 텐서 예측 개수: {len(tensor_preds)}")
                 
                 student_outputs_for_parsing = raw_student_preds[0] if len(raw_student_preds) > 0 else raw_student_preds
             else:
-                print(f"🔍 Student 단일 출력 형태: {getattr(raw_student_preds, 'shape', 'No shape')}")
+                # print(f"🔍 Student 단일 출력 형태: {getattr(raw_student_preds, 'shape', 'No shape')}")
                 tensor_preds = raw_student_preds
                 student_outputs_for_parsing = raw_student_preds
                 

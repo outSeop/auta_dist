@@ -61,7 +61,7 @@ class SingleClassDistillationLoss(nn.Module):
         # 지능적 차원 정렬 (정보 손실 최소화)
         if student_obj.shape != teacher_obj.shape:
             teacher_obj, student_obj = self.align_outputs_intelligently(teacher_obj, student_obj)
-            print(f"🔧 지능적 차원 조정 후 - Student: {student_obj.shape}, Teacher: {teacher_obj.shape}")
+            # print(f"🔧 지능적 차원 조정 후 - Student: {student_obj.shape}, Teacher: {teacher_obj.shape}")
         
         # Teacher의 objectness를 soft label로 사용
         try:
@@ -84,7 +84,7 @@ class SingleClassDistillationLoss(nn.Module):
         # 지능적 차원 정렬 (BBox도 동일하게)
         if student_bbox.shape != teacher_bbox.shape:
             teacher_bbox, student_bbox = self.align_outputs_intelligently(teacher_bbox, student_bbox)
-            print(f"🔧 BBox 지능적 차원 조정 후 - Student: {student_bbox.shape}, Teacher: {teacher_bbox.shape}")
+            # print(f"🔧 BBox 지능적 차원 조정 후 - Student: {student_bbox.shape}, Teacher: {teacher_bbox.shape}")
         
         # Teacher confidence가 높은 예측만 사용
         try:
@@ -99,8 +99,8 @@ class SingleClassDistillationLoss(nn.Module):
                 student_bbox_masked = student_bbox[high_conf_mask_bbox]  # [num_valid, 4]
                 teacher_bbox_masked = teacher_bbox[high_conf_mask_bbox]  # [num_valid, 4]
                 
-                print(f"🔍 Masked student_bbox shape: {student_bbox_masked.shape}")
-                print(f"🔍 Masked teacher_bbox shape: {teacher_bbox_masked.shape}")
+                # print(f"🔍 Masked student_bbox shape: {student_bbox_masked.shape}")
+                # print(f"🔍 Masked teacher_bbox shape: {teacher_bbox_masked.shape}")
                 
                 # IoU loss + L1 loss 조합
                 bbox_loss = self.bbox_distillation_loss(
@@ -153,7 +153,7 @@ class SingleClassDistillationLoss(nn.Module):
             indices = torch.randperm(student_bbox.shape[0])[:10000]
             student_bbox = student_bbox[indices]
             teacher_bbox = teacher_bbox[indices]
-            print(f"🔧 샘플링 후 - Student: {student_bbox.shape}, Teacher: {teacher_bbox.shape}")
+            # print(f"🔧 샘플링 후 - Student: {student_bbox.shape}, Teacher: {teacher_bbox.shape}")
         
         try:
             # YOLO bbox 형식 (cx, cy, w, h) → (x1, y1, x2, y2) 변환
@@ -349,7 +349,7 @@ class SingleClassDistillationLoss(nn.Module):
         """
         Teacher와 Student 출력을 지능적으로 정렬 (정보 손실 최소화)
         """
-        # print(f"🔧 정렬 전 - Teacher: {teacher_out.shape}, Student: {student_out.shape}")
+        # # print(f"🔧 정렬 전 - Teacher: {teacher_out.shape}, Student: {student_out.shape}")
         
         # 다차원 텐서 안전하게 처리
         batch_size = teacher_out.shape[0]
