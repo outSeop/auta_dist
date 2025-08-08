@@ -33,17 +33,18 @@ class FigmaUIDistillation:
                  teacher_model: str = 'yolov11l.pt',
                  student_model: str = 'yolov11s.yaml',
                  data_yaml: str = 'figma_ui.yaml',
-                 device: str = 'cuda',
+                 device: str = 'auto',
                  use_wandb: bool = True):
         """
         Args:
             teacher_model: Teacher 모델 경로 (YOLOv11-l)
             student_model: Student 모델 설정 (YOLOv11-s 또는 YOLOv11-m)
             data_yaml: Figma UI 데이터셋 설정
-            device: 학습 디바이스
+            device: 학습 디바이스 ('auto', 'cuda', 'mps', 'cpu')
             use_wandb: WandB 사용 여부
         """
-        self.device = device
+        # 디바이스 자동 선택
+        self.device = self._select_device(device)
         self.use_wandb = use_wandb
         
         # 모델 초기화
@@ -57,6 +58,11 @@ class FigmaUIDistillation:
         print(f"Initializing student model: {student_model}")
         self.student = YOLO(student_model)
         self.student.model = self.student.model.to(self.device)
+        self.student.model.train()  # 학습 모드 명시적 설정
+        
+        # Student 모델 파라미터 gradient 활성화 확인
+        for param in self.student.model.parameters():
+            param.requires_grad = True
         
         print(f"✅ Models loaded on device: {self.device}")
         print(f"✅ Teacher parameters: {sum(p.numel() for p in self.teacher.model.parameters()):,}")
@@ -74,6 +80,66 @@ class FigmaUIDistillation:
         # WandB 초기화
         if self.use_wandb:
             self.init_wandb()
+        
+        # 모델 초기 성능 테스트
+        self._test_model_outputs()
+    
+    def _select_device(self, device: str) -> str:
+        """디바이스 자동 선택"""
+        if device == 'auto':
+            # 1. CUDA 가능 여부 확인
+            if torch.cuda.is_available():
+                device = 'cuda'
+                gpu_count = torch.cuda.device_count()
+                gpu_name = torch.cuda.get_device_name(0) if gpu_count > 0 else "Unknown"
+                print(f"🚀 CUDA 사용: {gpu_name} ({gpu_count}개 GPU)")
+            # 2. Apple Silicon MPS 가능 여부 확인 (macOS)
+            elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
+                device = 'mps'
+                print(f"🍎 Apple Silicon MPS 사용")
+            # 3. 기본값은 CPU
+            else:
+                device = 'cpu'
+                print(f"💻 CPU 사용")
+        else:
+            # 수동 지정된 디바이스 유효성 검증
+            if device == 'cuda' and not torch.cuda.is_available():
+                print(f"⚠️ CUDA가 사용 불가능합니다. CPU로 변경합니다.")
+                device = 'cpu'
+            elif device == 'mps' and not (hasattr(torch.backends, 'mps') and torch.backends.mps.is_available()):
+                print(f"⚠️ MPS가 사용 불가능합니다. CPU로 변경합니다.")
+                device = 'cpu'
+            else:
+                print(f"🔧 수동 선택된 디바이스: {device}")
+        
+        return device
+    
+    def _get_optimal_settings(self) -> dict:
+        """디바이스별 최적화 설정 반환"""
+        if self.device == 'cuda':
+            # CUDA 환경 - 높은 성능 설정
+            return {
+                'batch_size_multiplier': 1.0,
+                'num_workers_multiplier': 1.0,
+                'pin_memory': True,
+                'non_blocking': True
+            }
+        elif self.device == 'mps':
+            # Apple Silicon MPS - 중간 성능 설정  
+            return {
+                'batch_size_multiplier': 0.75,
+                'num_workers_multiplier': 0.5,
+                'pin_memory': False,
+                'non_blocking': False
+            }
+        else:
+            # CPU - 저성능 설정
+            return {
+                'batch_size_multiplier': 0.5,
+                'num_workers_multiplier': 0.25,
+                'pin_memory': False,
+                'non_blocking': False
+            }
     
     def load_dataset_config(self, data_yaml: str):
         """데이터셋 설정 로드 및 수정"""
@@ -122,6 +188,50 @@ class FigmaUIDistillation:
             print(f"⚠️ WandB 초기화 실패: {e}")
             self.use_wandb = False
     
+    def _test_model_outputs(self):
+        """모델 출력 형식 테스트"""
+        print(f"\n🧪 모델 출력 형식 테스트...")
+        try:
+            # 테스트 이미지 생성 (640x640)
+            test_img = torch.randn(1, 3, 640, 640).to(self.device)
+            
+            with torch.no_grad():
+                # Teacher 출력 테스트
+                teacher_out = self.teacher.model(test_img)
+                print(f"🎓 Teacher 출력:")
+                print(f"   - 타입: {type(teacher_out)}")
+                if hasattr(teacher_out, 'shape'):
+                    print(f"   - 형태: {teacher_out.shape}")
+                elif hasattr(teacher_out, '__len__'):
+                    print(f"   - 길이: {len(teacher_out)}")
+                    if len(teacher_out) > 0:
+                        print(f"   - 첫번째 요소 형태: {getattr(teacher_out[0], 'shape', 'N/A')}")
+                
+                # Student 출력 테스트
+                student_out = self.student.model(test_img)
+                print(f"🎒 Student 출력:")
+                print(f"   - 타입: {type(student_out)}")
+                if hasattr(student_out, 'shape'):
+                    print(f"   - 형태: {student_out.shape}")
+                elif hasattr(student_out, '__len__'):
+                    print(f"   - 길이: {len(student_out)}")
+                    if len(student_out) > 0:
+                        print(f"   - 첫번째 요소 형태: {getattr(student_out[0], 'shape', 'N/A')}")
+                
+                # Student 초기 신뢰도 확인
+                if isinstance(student_out, torch.Tensor) and student_out.dim() == 3:
+                    if student_out.shape[-1] >= 5:
+                        conf_scores = torch.sigmoid(student_out[0, :, 4])
+                        print(f"🔍 Student 초기 신뢰도:")
+                        print(f"   - 최대: {conf_scores.max():.6f}")
+                        print(f"   - 평균: {conf_scores.mean():.6f}")
+                        print(f"   - > 0.1: {(conf_scores > 0.1).sum().item()}개")
+                        print(f"   - > 0.01: {(conf_scores > 0.01).sum().item()}개")
+                        print(f"   - > 0.001: {(conf_scores > 0.001).sum().item()}개")
+                
+        except Exception as e:
+            print(f"⚠️ 모델 출력 테스트 실패: {e}")
+    
     def train_step(self, batch, optimizer) -> Dict:
         """단일 학습 스텝 (리팩토링)"""
         # 배치 파싱
@@ -145,11 +255,11 @@ class FigmaUIDistillation:
             )
             
             # 2. Feature 증류 손실 (현재 비활성화)
-            feat_loss = torch.tensor(0.0, device=images.device)
+            feat_loss = torch.tensor(0.0, device=images.device, requires_grad=True)
             feat_metrics = {'feature_total': 0.0}
             
             # 3. Base 손실 (현재 비활성화)
-            base_loss = torch.tensor(0.0, device=images.device)
+            base_loss = torch.tensor(0.0, device=images.device, requires_grad=True)
             
             # 전체 손실 조합
             total_loss = det_loss + 0.5 * feat_loss + 0.0 * base_loss
@@ -194,25 +304,88 @@ class FigmaUIDistillation:
     
     def _get_teacher_predictions(self, images):
         """Teacher 모델 예측"""
-        teacher_outputs = self.teacher.model(images)
-        if isinstance(teacher_outputs, (list, tuple)) and len(teacher_outputs) > 0:
-            teacher_outputs = teacher_outputs[0]
-        return self.parse_model_outputs(teacher_outputs)
+        # Teacher 모델의 직접 추론 사용 (후처리 포함)
+        results = self.teacher(images, verbose=False)
+        return self._parse_yolo_results(results, 'teacher')
     
     def _get_student_predictions(self, images):
         """Student 모델 예측"""
+        # Student 모델의 직접 추론 사용 (후처리 포함)
+        results = self.student(images, verbose=False)
+        
+        # YOLO Results 객체를 직접 파싱
+        parsed_outputs = self._parse_yolo_results(results, 'student')
+        
+        # Raw 출력도 함께 반환 (손실 계산용)
         raw_student_preds = self.student.model(images)
-        
-        # 텐서만 필터링
-        if isinstance(raw_student_preds, (list, tuple)):
-            tensor_preds = [item for item in raw_student_preds if hasattr(item, 'view')]
-            student_outputs_for_parsing = raw_student_preds[0] if len(raw_student_preds) > 0 else raw_student_preds
-        else:
-            tensor_preds = raw_student_preds
-            student_outputs_for_parsing = raw_student_preds
-        
-        parsed_outputs = self.parse_model_outputs(student_outputs_for_parsing)
-        return parsed_outputs, tensor_preds
+        return parsed_outputs, raw_student_preds
+    
+    def _parse_yolo_results(self, results, model_name):
+        """YOLO Results 객체를 파싱"""
+        try:
+            batch_size = len(results) if isinstance(results, list) else 1
+            if not isinstance(results, list):
+                results = [results]
+            
+            all_bbox = []
+            all_objectness = []
+            
+            for i, result in enumerate(results):
+                if hasattr(result, 'boxes') and result.boxes is not None:
+                    # 검출된 객체가 있는 경우
+                    boxes = result.boxes
+                    if hasattr(boxes, 'xyxy'):
+                        bbox = boxes.xyxy.cpu().numpy()  # [N, 4] xyxy format
+                        conf = boxes.conf.cpu().numpy()  # [N] confidence scores
+                        
+                        print(f"✅ {model_name} 이미지 {i}: {len(bbox)}개 검출 (평균 신뢰도: {conf.mean():.4f})")
+                        
+                        all_bbox.append(torch.tensor(bbox, device=self.device))
+                        all_objectness.append(torch.tensor(conf, device=self.device).unsqueeze(-1))
+                    else:
+                        print(f"⚠️ {model_name} 이미지 {i}: boxes.xyxy 없음")
+                        all_bbox.append(torch.empty((0, 4), device=self.device))
+                        all_objectness.append(torch.empty((0, 1), device=self.device))
+                else:
+                    print(f"⚠️ {model_name} 이미지 {i}: 검출 없음")
+                    all_bbox.append(torch.empty((0, 4), device=self.device))
+                    all_objectness.append(torch.empty((0, 1), device=self.device))
+            
+            # 배치 차원으로 결합
+            max_detections = max(bbox.shape[0] for bbox in all_bbox) if all_bbox else 0
+            if max_detections == 0:
+                return {
+                    'bbox': torch.empty((batch_size, 0, 4), device=self.device),
+                    'objectness': torch.empty((batch_size, 0, 1), device=self.device)
+                }
+            
+            # 패딩하여 동일한 크기로 만들기
+            padded_bbox = []
+            padded_objectness = []
+            
+            for bbox, obj in zip(all_bbox, all_objectness):
+                if bbox.shape[0] < max_detections:
+                    pad_size = max_detections - bbox.shape[0]
+                    bbox_pad = torch.zeros((pad_size, 4), device=self.device)
+                    obj_pad = torch.zeros((pad_size, 1), device=self.device)
+                    bbox = torch.cat([bbox, bbox_pad], dim=0)
+                    obj = torch.cat([obj, obj_pad], dim=0)
+                
+                padded_bbox.append(bbox)
+                padded_objectness.append(obj)
+            
+            return {
+                'bbox': torch.stack(padded_bbox, dim=0),
+                'objectness': torch.stack(padded_objectness, dim=0)
+            }
+            
+        except Exception as e:
+            print(f"❌ {model_name} Results 파싱 오류: {e}")
+            batch_size = len(results) if isinstance(results, list) else 1
+            return {
+                'bbox': torch.empty((batch_size, 0, 4), device=self.device),
+                'objectness': torch.empty((batch_size, 0, 1), device=self.device)
+            }
     
     def parse_model_outputs(self, outputs):
         """모델 출력을 파싱하여 bbox와 objectness 분리"""
@@ -335,14 +508,18 @@ class FigmaUIDistillation:
               batch_size: int = 16,
               learning_rate: float = 0.001,
               num_workers: int = 2,
-              save_dir: str = './runs'):
+              save_dir: str = './runs',
+              max_train_samples: int = None,
+              max_val_samples: int = None):
         """Knowledge Distillation 학습 실행"""
         
         # 저장 디렉토리 생성
         os.makedirs(save_dir, exist_ok=True)
         
         # 데이터로더 생성
-        train_loader, val_loader = self._create_dataloaders(batch_size, num_workers)
+        train_loader, val_loader = self._create_dataloaders(
+            batch_size, num_workers, max_train_samples, max_val_samples
+        )
         
         if train_loader is None:
             print("⚠️ 데이터로더 생성 실패 - YOLO 기본 학습으로 폴백")
@@ -437,12 +614,27 @@ class FigmaUIDistillation:
         
         return best_map
     
-    def _create_dataloaders(self, batch_size, num_workers):
-        """데이터로더 생성 (간소화)"""
+    def _create_dataloaders(self, batch_size, num_workers, max_train_samples=None, max_val_samples=None):
+        """데이터로더 생성 (디바이스별 최적화)"""
         try:
             from ultralytics.data.dataset import YOLODataset
             from torch.utils.data import DataLoader
             import yaml
+            
+            # 디바이스별 최적화 설정 적용
+            optimal_settings = self._get_optimal_settings()
+            
+            # 배치 크기와 워커 수 조정
+            optimized_batch_size = max(1, int(batch_size * optimal_settings['batch_size_multiplier']))
+            optimized_num_workers = max(1, int(num_workers * optimal_settings['num_workers_multiplier']))
+            
+            print(f"🔧 디바이스별 최적화 설정:")
+            print(f"   - 배치 크기: {batch_size} → {optimized_batch_size}")
+            print(f"   - 워커 수: {num_workers} → {optimized_num_workers}")
+            print(f"   - Pin Memory: {optimal_settings['pin_memory']}")
+            
+            batch_size = optimized_batch_size
+            num_workers = optimized_num_workers
             
             with open(self.modified_data_yaml, 'r') as f:
                 data_config = yaml.safe_load(f)
@@ -468,12 +660,18 @@ class FigmaUIDistillation:
                 stride=32
             )
             
+            # 샘플 수 제한 (빠른 테스트용)
+            if max_train_samples and len(train_dataset) > max_train_samples:
+                train_dataset.im_files = train_dataset.im_files[:max_train_samples]
+                train_dataset.labels = train_dataset.labels[:max_train_samples]
+                print(f"🔸 학습 데이터를 {len(train_dataset.im_files)}개로 제한")
+            
             train_loader = DataLoader(
                 train_dataset,
                 batch_size=batch_size,
                 shuffle=True,
-                num_workers=min(num_workers, 2),  # 시스템 권장 worker 수
-                pin_memory=True,
+                num_workers=num_workers,
+                pin_memory=optimal_settings['pin_memory'],
                 drop_last=True,
                 collate_fn=train_dataset.collate_fn
             )
@@ -493,12 +691,18 @@ class FigmaUIDistillation:
                         stride=32
                     )
                     
+                    # 검증 샘플 수 제한
+                    if max_val_samples and len(val_dataset) > max_val_samples:
+                        val_dataset.im_files = val_dataset.im_files[:max_val_samples]
+                        val_dataset.labels = val_dataset.labels[:max_val_samples]
+                        print(f"🔸 검증 데이터를 {len(val_dataset.im_files)}개로 제한")
+                    
                     val_loader = DataLoader(
                         val_dataset,
                         batch_size=batch_size,
                         shuffle=False,
-                        num_workers=min(num_workers, 2),
-                        pin_memory=True,
+                        num_workers=num_workers,
+                        pin_memory=optimal_settings['pin_memory'],
                         drop_last=False,
                         collate_fn=val_dataset.collate_fn
                     )
@@ -562,12 +766,22 @@ class FigmaUIDistillation:
                 try:
                     results = self.student.model(images)
                     
+                    # 디버깅: 모델 출력 형태 확인
+                    print(f"🔍 모델 출력 타입: {type(results)}")
+                    if hasattr(results, '__len__'):
+                        print(f"🔍 출력 길이: {len(results)}")
+                    
                     # YOLO 결과를 표준 형식으로 변환
                     if hasattr(results, '__iter__') and not isinstance(results, torch.Tensor):
                         # Ultralytics YOLO 결과
                         for i, result in enumerate(results):
+                            print(f"🔍 Result {i} 타입: {type(result)}")
+                            print(f"🔍 Result {i} 속성: {dir(result)}")
+                            
                             if hasattr(result, 'boxes') and result.boxes is not None:
                                 boxes = result.boxes
+                                print(f"🔍 Boxes 타입: {type(boxes)}, 길이: {len(boxes)}")
+                                
                                 if len(boxes) > 0:
                                     pred_boxes = boxes.xyxy.cpu().numpy()
                                     pred_scores = boxes.conf.cpu().numpy()
@@ -586,9 +800,91 @@ class FigmaUIDistillation:
                                             'score': pred_scores[j],
                                             'label': pred_labels[j]
                                         })
+                                else:
+                                    print(f"⚠️ 이미지 {batch_idx}_{i}: 검출된 객체 없음")
+                            else:
+                                print(f"⚠️ 이미지 {batch_idx}_{i}: boxes 속성 없음 또는 None")
                     else:
                         # Raw tensor 출력 처리
-                        print(f"⚠️ Raw tensor 출력 감지 - 형식 변환 필요")
+                        print(f"⚠️ Raw tensor 출력 감지:")
+                        print(f"   - 타입: {type(results)}")
+                        if isinstance(results, torch.Tensor):
+                            print(f"   - 형태: {results.shape}")
+                            print(f"   - 값 범위: [{results.min():.3f}, {results.max():.3f}]")
+                            
+                            # YOLOv11 출력 처리 개선
+                            # 일반적인 YOLO 출력 형식들을 처리
+                            if results.dim() == 3:
+                                batch_size = results.shape[0]
+                                
+                                # 형식 1: [batch, num_anchors, features] - 주요 출력 형식
+                                if results.shape[-1] >= 5:  # [cx, cy, w, h, conf, ...] or [x1, y1, x2, y2, conf, ...]
+                                    for i in range(batch_size):
+                                        detections = results[i]  # [num_anchors, features]
+                                        
+                                        # objectness/confidence 점수 추출
+                                        if results.shape[-1] == 5:  # [x, y, w, h, conf]
+                                            conf_scores = torch.sigmoid(detections[:, 4])
+                                        elif results.shape[-1] == 6:  # [x1, y1, x2, y2, conf, cls]
+                                            conf_scores = torch.sigmoid(detections[:, 4])
+                                        else:  # 더 많은 특성이 있는 경우
+                                            conf_scores = torch.sigmoid(detections[:, 4])
+                                        
+                                        # 매우 낮은 임계값으로 필터링
+                                        conf_mask = conf_scores > 0.001  # 더 낮은 임계값
+                                        
+                                        if conf_mask.any():
+                                            valid_detections = detections[conf_mask]
+                                            valid_scores = conf_scores[conf_mask]
+                                            
+                                            # bbox 좌표 처리
+                                            if results.shape[-1] >= 4:
+                                                bbox_coords = valid_detections[:, :4].cpu().numpy()
+                                                scores = valid_scores.cpu().numpy()
+                                                
+                                                # bbox가 xywh 형식인지 xyxy 형식인지 확인
+                                                # 일반적으로 YOLO는 center_x, center_y, width, height 형식
+                                                # 이를 x1, y1, x2, y2로 변환
+                                                h, w = images.shape[2], images.shape[3]  # 이미지 크기
+                                                
+                                                converted_boxes = []
+                                                for bbox in bbox_coords:
+                                                    cx, cy, bw, bh = bbox
+                                                    # 정규화된 좌표를 픽셀 좌표로 변환
+                                                    cx *= w
+                                                    cy *= h
+                                                    bw *= w
+                                                    bh *= h
+                                                    
+                                                    x1 = max(0, cx - bw/2)
+                                                    y1 = max(0, cy - bh/2)
+                                                    x2 = min(w, cx + bw/2)
+                                                    y2 = min(h, cy + bh/2)
+                                                    converted_boxes.append([x1, y1, x2, y2])
+                                                
+                                                converted_boxes = np.array(converted_boxes)
+                                                pred_labels = np.zeros(len(converted_boxes))  # single class
+                                                
+                                                print(f"🎯 Raw tensor 이미지 {batch_idx}_{i}: {len(converted_boxes)}개 객체 검출 (임계값 0.001)")
+                                                for j in range(min(3, len(converted_boxes))):
+                                                    bbox = converted_boxes[j]
+                                                    print(f"   - Box {j}: [{bbox[0]:.1f}, {bbox[1]:.1f}, {bbox[2]:.1f}, {bbox[3]:.1f}] conf:{scores[j]:.4f}")
+                                                
+                                                for j in range(len(converted_boxes)):
+                                                    all_predictions.append({
+                                                        'image_id': batch_idx * images.shape[0] + i,
+                                                        'bbox': converted_boxes[j],
+                                                        'score': scores[j],
+                                                        'label': pred_labels[j]
+                                                    })
+                                        else:
+                                            print(f"⚠️ Raw tensor 이미지 {batch_idx}_{i}: 임계값 0.001로도 검출 없음")
+                                            print(f"   - 최대 신뢰도: {conf_scores.max():.6f}")
+                                            print(f"   - 평균 신뢰도: {conf_scores.mean():.6f}")
+                        elif isinstance(results, (list, tuple)):
+                            print(f"   - 리스트/튜플 길이: {len(results)}")
+                            for i, item in enumerate(results):
+                                print(f"   - Item {i}: {type(item)}, 형태: {getattr(item, 'shape', 'N/A')}")
                     
                     # Ground Truth 처리
                     if isinstance(targets, dict):
@@ -824,7 +1120,7 @@ class FigmaUIDistillation:
         union = area1 + area2 - intersection
         
         return intersection / union if union > 0 else 0.0
-
+    
     def log_inference_images(self, val_loader, epoch: int, num_images: int = 5):
         """추론 결과 이미지를 bbox와 함께 WandB에 로깅"""
         if not self.use_wandb:
@@ -854,6 +1150,11 @@ class FigmaUIDistillation:
                     
                     # Student 추론
                     results = self.student.model(images)
+                    
+                    # 디버깅: WandB 로깅에서도 모델 출력 확인
+                    print(f"🔍 WandB 로깅 - 모델 출력 타입: {type(results)}")
+                    if hasattr(results, '__len__'):
+                        print(f"🔍 WandB 로깅 - 출력 길이: {len(results)}")
                     
                     # 각 이미지 처리
                     for img_idx in range(min(images.shape[0], num_images - len(wandb_images))):

@@ -49,7 +49,7 @@ class SingleClassDistillationLoss(nn.Module):
                 loc_loss = self._compute_localization_loss(teacher_outputs, targets)
                 loss_dict['loc_loss'] = loc_loss.item()
             except Exception as loc_e:
-                loc_loss = torch.tensor(0.0, device=student_outputs['objectness'].device)
+                loc_loss = torch.tensor(0.0, device=student_outputs['objectness'].device, requires_grad=True)
                 loss_dict['loc_loss'] = 0.0
             
             # 전체 손실 조합 (localization loss 가중치를 0으로 설정)
@@ -62,7 +62,7 @@ class SingleClassDistillationLoss(nn.Module):
             print(f"❌ 손실 계산 중 오류: {e}")
             # 오류 시 기본 손실 반환
             device = student_outputs['objectness'].device
-            return torch.tensor(0.0, device=device), {'total_loss': 0.0}
+            return torch.tensor(0.0, device=device, requires_grad=True), {'total_loss': 0.0}
     
     def _compute_objectness_loss(self, student_outputs: Dict, teacher_outputs: Dict) -> torch.Tensor:
         """Objectness 점수 증류 손실"""
@@ -130,15 +130,47 @@ class SingleClassDistillationLoss(nn.Module):
             return torch.tensor(0.0, device=teacher_outputs['bbox'].device)
     
     def _align_tensors(self, tensor1: torch.Tensor, tensor2: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
-        """두 텐서의 차원을 정렬 (정보 손실 최소화)"""
+        """두 텐서의 차원을 정렬 (Zero-detection 케이스 처리)"""
         if tensor1.shape == tensor2.shape:
             return tensor1, tensor2
+        
+        # Zero-detection 케이스 처리
+        if tensor1.shape[1] == 0 or tensor2.shape[1] == 0:
+            return self._handle_zero_detections(tensor1, tensor2)
         
         # 더 작은 텐서를 큰 텐서 크기로 확장
         if tensor1.shape[1] < tensor2.shape[1]:
             tensor1 = self._expand_tensor(tensor1, tensor2.shape[1])
         elif tensor2.shape[1] < tensor1.shape[1]:
             tensor2 = self._expand_tensor(tensor2, tensor1.shape[1])
+        
+        return tensor1, tensor2
+    
+    def _handle_zero_detections(self, tensor1: torch.Tensor, tensor2: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Zero-detection 케이스 처리 (Student=0, Teacher>0 또는 그 반대)"""
+        batch_size = tensor1.shape[0]
+        feat_dim = tensor1.shape[-1]
+        device = tensor1.device
+        
+        # 둘 다 0인 경우
+        if tensor1.shape[1] == 0 and tensor2.shape[1] == 0:
+            return tensor1, tensor2
+        
+        # tensor1이 0이고 tensor2가 존재하는 경우 (Student=0, Teacher>0)
+        if tensor1.shape[1] == 0 and tensor2.shape[1] > 0:
+            # Student에 대해 Teacher와 동일한 크기의 더미 텐서 생성
+            target_size = tensor2.shape[1]
+            dummy_tensor1 = torch.zeros(batch_size, target_size, feat_dim, 
+                                      device=device, requires_grad=True)
+            return dummy_tensor1, tensor2
+        
+        # tensor2가 0이고 tensor1이 존재하는 경우 (Teacher=0, Student>0)
+        if tensor2.shape[1] == 0 and tensor1.shape[1] > 0:
+            # Teacher에 대해 Student와 동일한 크기의 더미 텐서 생성
+            target_size = tensor1.shape[1]
+            dummy_tensor2 = torch.zeros(batch_size, target_size, feat_dim, 
+                                      device=device, requires_grad=True)
+            return tensor1, dummy_tensor2
         
         return tensor1, tensor2
     
