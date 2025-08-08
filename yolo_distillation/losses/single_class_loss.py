@@ -268,6 +268,8 @@ class SingleClassDistillationLoss(nn.Module):
                     if high_conf_idx.any():
                         teacher_boxes = bbox[i][high_conf_idx]  # [num_valid, 4]
                         gt_boxes = targets[i][:, 1:5] if targets[i].shape[-1] > 4 else targets[i][:, :4]
+                        # 디바이스 및 dtype 정렬
+                        gt_boxes = gt_boxes.to(teacher_boxes.device, dtype=teacher_boxes.dtype)
                         
                         # IoU 계산하여 quality score 생성
                         ious = self.box_iou(teacher_boxes, gt_boxes)
@@ -305,6 +307,8 @@ class SingleClassDistillationLoss(nn.Module):
                             # GT 박스가 있는 경우만 IoU 계산
                             if batch_bboxes.shape[0] > 0:
                                 # 좌표 형식이 이미 xyxy인지 xywh인지 확인 필요
+                                # 디바이스 및 dtype 정렬
+                                batch_bboxes = batch_bboxes.to(teacher_boxes.device, dtype=teacher_boxes.dtype)
                                 ious = self.box_iou(teacher_boxes, batch_bboxes)
                                 quality = ious.max(dim=1)[0]
                                 quality_scores.append(quality)
