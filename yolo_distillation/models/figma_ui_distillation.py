@@ -250,8 +250,9 @@ class FigmaUIDistillation:
             }
     
     def validate(self, val_loader):
-        """검증 수행 - 실제 mAP 계산"""
+        """검증 수행 - bbox 출력 및 실제 mAP 계산"""
         if val_loader is None:
+            print("⚠️ Validation loader가 없습니다.")
             return {
                 'val/mAP': 0.0,
                 'val/precision': 0.0,
@@ -259,19 +260,21 @@ class FigmaUIDistillation:
                 'val/inference_time': 0.0
             }
         
+        print(f"\n🔍 Validation 시작...")
         self.student.model.eval()
         
         try:
-            # 빠른 평가 (처음 20배치만 사용)
+            # 상세한 평가 수행
             eval_metrics = self.evaluate_model(val_loader, epoch=0)
             
             # 추론 시간 측정
+            print(f"⏱️ 추론 시간 측정 중...")
             total_time = 0
             num_batches = 0
             
             with torch.no_grad():
                 for batch_idx, batch in enumerate(val_loader):
-                    if batch_idx >= 10:
+                    if batch_idx >= 5:  # 적은 수로 빠른 측정
                         break
                         
                     images, _ = self._parse_batch(batch)
@@ -279,11 +282,32 @@ class FigmaUIDistillation:
                         continue
                     
                     start_time = time.time()
-                    _ = self.student.model(images)
-                    total_time += time.time() - start_time
+                    results = self.student.model(images)
+                    inference_time = time.time() - start_time
+                    total_time += inference_time
                     num_batches += 1
+                    
+                    # 첫 번째 배치에서 상세 출력
+                    if batch_idx == 0:
+                        print(f"💡 배치 {batch_idx}: {inference_time*1000:.2f}ms, 이미지 {images.shape[0]}개")
+                        if hasattr(results, '__iter__') and not isinstance(results, torch.Tensor):
+                            for i, result in enumerate(results):
+                                if hasattr(result, 'boxes') and result.boxes is not None:
+                                    num_detections = len(result.boxes)
+                                    print(f"   📦 이미지 {i}: {num_detections}개 검출")
             
             avg_time = total_time / num_batches if num_batches > 0 else 0
+            
+            print(f"✅ Validation 완료!")
+            print(f"   🎯 mAP@0.5: {eval_metrics.get('map50', 0.0):.4f}")
+            print(f"   🎯 mAP@0.5:0.95: {eval_metrics.get('map', 0.0):.4f}")
+            print(f"   🔍 Precision: {eval_metrics.get('precision', 0.0):.4f}")
+            print(f"   🔍 Recall: {eval_metrics.get('recall', 0.0):.4f}")
+            print(f"   ⏱️ 평균 추론 시간: {avg_time*1000:.2f}ms")
+            
+            # WandB에 bbox 이미지 로깅
+            if self.use_wandb:
+                self.log_inference_images(val_loader, epoch=0, num_images=3)
             
             self.student.model.train()
             return {
@@ -295,7 +319,9 @@ class FigmaUIDistillation:
             }
             
         except Exception as e:
-            print(f"⚠️ 검증 중 오류: {e}")
+            print(f"❌ 검증 중 오류: {e}")
+            import traceback
+            traceback.print_exc()
             self.student.model.train()
             return {
                 'val/mAP': 0.0,
@@ -308,7 +334,7 @@ class FigmaUIDistillation:
               epochs: int = 100,
               batch_size: int = 16,
               learning_rate: float = 0.001,
-              num_workers: int = 8,
+              num_workers: int = 2,
               save_dir: str = './runs'):
         """Knowledge Distillation 학습 실행"""
         
@@ -446,7 +472,7 @@ class FigmaUIDistillation:
                 train_dataset,
                 batch_size=batch_size,
                 shuffle=True,
-                num_workers=min(num_workers, 4),  # 안전한 worker 수
+                num_workers=min(num_workers, 2),  # 시스템 권장 worker 수
                 pin_memory=True,
                 drop_last=True,
                 collate_fn=train_dataset.collate_fn
@@ -471,7 +497,7 @@ class FigmaUIDistillation:
                         val_dataset,
                         batch_size=batch_size,
                         shuffle=False,
-                        num_workers=min(num_workers, 4),
+                        num_workers=min(num_workers, 2),
                         pin_memory=True,
                         drop_last=False,
                         collate_fn=val_dataset.collate_fn
@@ -514,13 +540,423 @@ class FigmaUIDistillation:
     
     # 평가 및 시각화 메서드들은 기존과 동일하게 유지
     def evaluate_model(self, val_loader, epoch: int) -> Dict:
-        """모델 평가 및 mAP 계산 (기존 로직 유지)"""
-        # 기존 evaluate_model 메서드와 동일한 구현
-        # 여기서는 간소화된 버전
-        return {'map': 0.0, 'map50': 0.0, 'precision': 0.0, 'recall': 0.0}
+        """모델 평가 및 mAP 계산"""
+        self.student.model.eval()
+        
+        all_predictions = []
+        all_targets = []
+        
+        print(f"\n📊 Epoch {epoch} 모델 평가 시작...")
+        
+        with torch.no_grad():
+            for batch_idx, batch in enumerate(val_loader):
+                if batch_idx >= 20:  # 빠른 평가를 위해 20배치만 사용
+                    break
+                    
+                # 배치 파싱
+                images, targets = self._parse_batch(batch)
+                if images is None:
+                    continue
+                
+                # Student 추론
+                try:
+                    results = self.student.model(images)
+                    
+                    # YOLO 결과를 표준 형식으로 변환
+                    if hasattr(results, '__iter__') and not isinstance(results, torch.Tensor):
+                        # Ultralytics YOLO 결과
+                        for i, result in enumerate(results):
+                            if hasattr(result, 'boxes') and result.boxes is not None:
+                                boxes = result.boxes
+                                if len(boxes) > 0:
+                                    pred_boxes = boxes.xyxy.cpu().numpy()
+                                    pred_scores = boxes.conf.cpu().numpy()
+                                    pred_labels = boxes.cls.cpu().numpy()
+                                    
+                                    # bbox 출력 로깅
+                                    print(f"🎯 이미지 {batch_idx}_{i}: {len(pred_boxes)}개 객체 검출")
+                                    for j in range(min(3, len(pred_boxes))):  # 상위 3개만 출력
+                                        bbox = pred_boxes[j]
+                                        print(f"   - Box {j}: [{bbox[0]:.1f}, {bbox[1]:.1f}, {bbox[2]:.1f}, {bbox[3]:.1f}] conf:{pred_scores[j]:.3f}")
+                                    
+                                    for j in range(len(pred_boxes)):
+                                        all_predictions.append({
+                                            'image_id': batch_idx * images.shape[0] + i,
+                                            'bbox': pred_boxes[j],
+                                            'score': pred_scores[j],
+                                            'label': pred_labels[j]
+                                        })
+                    else:
+                        # Raw tensor 출력 처리
+                        print(f"⚠️ Raw tensor 출력 감지 - 형식 변환 필요")
+                    
+                    # Ground Truth 처리
+                    if isinstance(targets, dict):
+                        self._process_ground_truth(targets, images, batch_idx, all_targets)
+                
+                except Exception as e:
+                    print(f"⚠️ 평가 중 오류 (배치 {batch_idx}): {e}")
+                    continue
+        
+        # mAP 계산
+        metrics = self.calculate_map(all_predictions, all_targets)
+        
+        print(f"📊 평가 완료:")
+        print(f"   - 총 예측: {len(all_predictions)}개")
+        print(f"   - 총 GT: {len(all_targets)}개") 
+        print(f"   - mAP@0.5: {metrics.get('map50', 0.0):.4f}")
+        print(f"   - mAP@0.5:0.95: {metrics.get('map', 0.0):.4f}")
+        
+        self.student.model.train()
+        return metrics
     
+    def _process_ground_truth(self, targets, images, batch_idx, all_targets):
+        """Ground Truth 데이터 처리"""
+        try:
+            if 'bboxes' in targets:
+                batch_idx_tensor = targets.get('batch_idx', torch.arange(images.shape[0]))
+                bboxes = targets['bboxes']
+                cls = targets.get('cls', torch.zeros(len(bboxes)))
+                
+                for img_idx in range(images.shape[0]):
+                    mask = batch_idx_tensor == img_idx
+                    if mask.any():
+                        img_bboxes = bboxes[mask].cpu().numpy()
+                        img_cls = cls[mask].cpu().numpy()
+                        
+                        print(f"📋 GT 이미지 {batch_idx}_{img_idx}: {len(img_bboxes)}개 객체")
+                        
+                        for k in range(len(img_bboxes)):
+                            # YOLO format (cx, cy, w, h) to (x1, y1, x2, y2)
+                            bbox = img_bboxes[k]
+                            h, w = images.shape[2], images.shape[3]
+                            x1 = (bbox[0] - bbox[2]/2) * w
+                            y1 = (bbox[1] - bbox[3]/2) * h
+                            x2 = (bbox[0] + bbox[2]/2) * w
+                            y2 = (bbox[1] + bbox[3]/2) * h
+                            
+                            all_targets.append({
+                                'image_id': batch_idx * images.shape[0] + img_idx,
+                                'bbox': [x1, y1, x2, y2],
+                                'label': img_cls[k]
+                            })
+        except Exception as e:
+            print(f"⚠️ GT 처리 중 오류: {e}")
+    
+    def calculate_map(self, predictions, targets):
+        """mAP 계산"""
+        if not predictions or not targets:
+            print("⚠️ 예측 또는 GT가 없어서 mAP를 계산할 수 없습니다.")
+            return {'map': 0.0, 'map50': 0.0, 'precision': 0.0, 'recall': 0.0}
+        
+        import numpy as np
+        
+        # IoU 임계값들
+        iou_thresholds = np.arange(0.5, 1.0, 0.05)
+        
+        # 이미지별로 그룹화
+        pred_by_image = {}
+        gt_by_image = {}
+        
+        for pred in predictions:
+            img_id = pred['image_id']
+            if img_id not in pred_by_image:
+                pred_by_image[img_id] = []
+            pred_by_image[img_id].append(pred)
+        
+        for gt in targets:
+            img_id = gt['image_id']
+            if img_id not in gt_by_image:
+                gt_by_image[img_id] = []
+            gt_by_image[img_id].append(gt)
+        
+        # 각 IoU 임계값에서 AP 계산
+        aps = []
+        for iou_thresh in iou_thresholds:
+            ap = self.calculate_ap_at_iou(pred_by_image, gt_by_image, iou_thresh)
+            aps.append(ap)
+        
+        # mAP@0.5
+        map50 = self.calculate_ap_at_iou(pred_by_image, gt_by_image, 0.5)
+        
+        # mAP@0.5:0.95
+        map_avg = np.mean(aps)
+        
+        # Precision, Recall at IoU=0.5
+        precision, recall = self.calculate_precision_recall(pred_by_image, gt_by_image, 0.5)
+        
+        return {
+            'map': map_avg,
+            'map50': map50,
+            'precision': precision,
+            'recall': recall
+        }
+    
+    def calculate_ap_at_iou(self, pred_by_image, gt_by_image, iou_thresh):
+        """특정 IoU 임계값에서 AP 계산"""
+        import numpy as np
+        
+        all_scores = []
+        all_matches = []
+        total_gt = 0
+        
+        for img_id in gt_by_image:
+            gt_boxes = gt_by_image[img_id]
+            pred_boxes = pred_by_image.get(img_id, [])
+            
+            total_gt += len(gt_boxes)
+            
+            if not pred_boxes:
+                continue
+            
+            # 예측을 신뢰도 순으로 정렬
+            pred_boxes = sorted(pred_boxes, key=lambda x: x['score'], reverse=True)
+            
+            matched_gt = [False] * len(gt_boxes)
+            
+            for pred in pred_boxes:
+                all_scores.append(pred['score'])
+                
+                # 가장 높은 IoU를 가진 GT 찾기
+                best_iou = 0
+                best_gt_idx = -1
+                
+                for gt_idx, gt in enumerate(gt_boxes):
+                    if matched_gt[gt_idx]:
+                        continue
+                    
+                    iou = self.calculate_iou(pred['bbox'], gt['bbox'])
+                    if iou > best_iou:
+                        best_iou = iou
+                        best_gt_idx = gt_idx
+                
+                # 매칭 확인
+                if best_iou >= iou_thresh and best_gt_idx >= 0:
+                    matched_gt[best_gt_idx] = True
+                    all_matches.append(True)
+                else:
+                    all_matches.append(False)
+        
+        if not all_scores:
+            return 0.0
+        
+        # Precision-Recall 곡선 계산
+        all_scores = np.array(all_scores)
+        all_matches = np.array(all_matches)
+        
+        # 정렬
+        sort_idx = np.argsort(-all_scores)
+        all_matches = all_matches[sort_idx]
+        
+        # 누적 TP, FP 계산
+        tp = np.cumsum(all_matches)
+        fp = np.cumsum(~all_matches)
+        
+        # Precision, Recall 계산
+        precision = tp / (tp + fp)
+        recall = tp / total_gt if total_gt > 0 else np.zeros_like(tp)
+        
+        # AP 계산 (11-point interpolation)
+        ap = 0
+        for t in np.arange(0, 1.1, 0.1):
+            p_max = np.max(precision[recall >= t]) if np.any(recall >= t) else 0
+            ap += p_max / 11
+        
+        return ap
+    
+    def calculate_precision_recall(self, pred_by_image, gt_by_image, iou_thresh=0.5):
+        """Precision과 Recall 계산"""
+        import numpy as np
+        
+        total_tp = 0
+        total_fp = 0
+        total_gt = 0
+        
+        for img_id in gt_by_image:
+            gt_boxes = gt_by_image[img_id]
+            pred_boxes = pred_by_image.get(img_id, [])
+            
+            total_gt += len(gt_boxes)
+            
+            if not pred_boxes:
+                continue
+            
+            matched_gt = [False] * len(gt_boxes)
+            
+            for pred in pred_boxes:
+                best_iou = 0
+                best_gt_idx = -1
+                
+                for gt_idx, gt in enumerate(gt_boxes):
+                    if matched_gt[gt_idx]:
+                        continue
+                    
+                    iou = self.calculate_iou(pred['bbox'], gt['bbox'])
+                    if iou > best_iou:
+                        best_iou = iou
+                        best_gt_idx = gt_idx
+                
+                if best_iou >= iou_thresh and best_gt_idx >= 0:
+                    matched_gt[best_gt_idx] = True
+                    total_tp += 1
+                else:
+                    total_fp += 1
+        
+        precision = total_tp / (total_tp + total_fp) if (total_tp + total_fp) > 0 else 0
+        recall = total_tp / total_gt if total_gt > 0 else 0
+        
+        return precision, recall
+    
+    def calculate_iou(self, box1, box2):
+        """IoU 계산"""
+        # box format: [x1, y1, x2, y2]
+        x1 = max(box1[0], box2[0])
+        y1 = max(box1[1], box2[1])
+        x2 = min(box1[2], box2[2])
+        y2 = min(box1[3], box2[3])
+        
+        if x2 <= x1 or y2 <= y1:
+            return 0.0
+        
+        intersection = (x2 - x1) * (y2 - y1)
+        area1 = (box1[2] - box1[0]) * (box1[3] - box1[1])
+        area2 = (box2[2] - box2[0]) * (box2[3] - box2[1])
+        union = area1 + area2 - intersection
+        
+        return intersection / union if union > 0 else 0.0
+
     def log_inference_images(self, val_loader, epoch: int, num_images: int = 5):
-        """추론 결과 이미지를 WandB에 로깅 (기존 로직 유지)"""
+        """추론 결과 이미지를 bbox와 함께 WandB에 로깅"""
         if not self.use_wandb:
             return
+        
         print(f"🖼️ {num_images}개 추론 이미지 로깅 (에폭 {epoch})")
+        
+        try:
+            import wandb
+            import matplotlib.pyplot as plt
+            import matplotlib.patches as patches
+            import numpy as np
+            from PIL import Image
+            
+            self.student.model.eval()
+            wandb_images = []
+            
+            with torch.no_grad():
+                for batch_idx, batch in enumerate(val_loader):
+                    if len(wandb_images) >= num_images:
+                        break
+                    
+                    # 배치 파싱
+                    images, targets = self._parse_batch(batch)
+                    if images is None:
+                        continue
+                    
+                    # Student 추론
+                    results = self.student.model(images)
+                    
+                    # 각 이미지 처리
+                    for img_idx in range(min(images.shape[0], num_images - len(wandb_images))):
+                        # 원본 이미지 복원 (0-1 정규화된 이미지를 0-255로)
+                        img_tensor = images[img_idx].cpu()
+                        img_np = (img_tensor.permute(1, 2, 0).numpy() * 255).astype(np.uint8)
+                        
+                        # matplotlib figure 생성
+                        fig, ax = plt.subplots(1, 1, figsize=(10, 8))
+                        ax.imshow(img_np)
+                        ax.set_title(f'Epoch {epoch} - Image {batch_idx}_{img_idx}')
+                        
+                        # 예측 결과 bbox 그리기 (빨간색)
+                        if hasattr(results, '__iter__') and not isinstance(results, torch.Tensor):
+                            if img_idx < len(results):
+                                result = results[img_idx]
+                                if hasattr(result, 'boxes') and result.boxes is not None:
+                                    boxes = result.boxes
+                                    if len(boxes) > 0:
+                                        pred_boxes = boxes.xyxy.cpu().numpy()
+                                        pred_scores = boxes.conf.cpu().numpy()
+                                        
+                                        for j, (box, score) in enumerate(zip(pred_boxes, pred_scores)):
+                                            if score > 0.3:  # 신뢰도 임계값
+                                                x1, y1, x2, y2 = box
+                                                width = x2 - x1
+                                                height = y2 - y1
+                                                
+                                                # 예측 bbox (빨간색)
+                                                rect = patches.Rectangle(
+                                                    (x1, y1), width, height,
+                                                    linewidth=2, edgecolor='red', 
+                                                    facecolor='none', linestyle='-'
+                                                )
+                                                ax.add_patch(rect)
+                                                
+                                                # 신뢰도 점수 표시
+                                                ax.text(x1, y1-5, f'Pred: {score:.2f}', 
+                                                       color='red', fontsize=10, 
+                                                       bbox=dict(boxstyle="round,pad=0.3", 
+                                                               facecolor='white', alpha=0.7))
+                        
+                        # Ground Truth bbox 그리기 (초록색)
+                        if isinstance(targets, dict) and 'bboxes' in targets:
+                            batch_idx_tensor = targets.get('batch_idx', torch.arange(images.shape[0]))
+                            bboxes = targets['bboxes']
+                            
+                            # 현재 이미지의 GT bbox 찾기
+                            mask = batch_idx_tensor == img_idx
+                            if mask.any():
+                                img_bboxes = bboxes[mask].cpu().numpy()
+                                
+                                for k, bbox in enumerate(img_bboxes):
+                                    # YOLO format (cx, cy, w, h) to (x1, y1, x2, y2)
+                                    h, w = img_np.shape[:2]
+                                    cx, cy, bw, bh = bbox
+                                    x1 = (cx - bw/2) * w
+                                    y1 = (cy - bh/2) * h
+                                    x2 = (cx + bw/2) * w
+                                    y2 = (cy + bh/2) * h
+                                    
+                                    width = x2 - x1
+                                    height = y2 - y1
+                                    
+                                    # GT bbox (초록색)
+                                    rect = patches.Rectangle(
+                                        (x1, y1), width, height,
+                                        linewidth=2, edgecolor='green', 
+                                        facecolor='none', linestyle='--'
+                                    )
+                                    ax.add_patch(rect)
+                                    
+                                    # GT 라벨 표시
+                                    ax.text(x1, y2+15, f'GT', 
+                                           color='green', fontsize=10,
+                                           bbox=dict(boxstyle="round,pad=0.3", 
+                                                   facecolor='white', alpha=0.7))
+                        
+                        # 범례 추가
+                        red_patch = patches.Patch(color='red', label='Prediction')
+                        green_patch = patches.Patch(color='green', label='Ground Truth')
+                        ax.legend(handles=[red_patch, green_patch], loc='upper right')
+                        
+                        ax.axis('off')
+                        plt.tight_layout()
+                        
+                        # WandB에 추가
+                        wandb_images.append(wandb.Image(fig, caption=f"Epoch {epoch} - Inference {batch_idx}_{img_idx}"))
+                        plt.close(fig)  # 메모리 정리
+                        
+                        if len(wandb_images) >= num_images:
+                            break
+            
+            # WandB에 로깅
+            if wandb_images:
+                wandb.log({f"validation_images_epoch_{epoch}": wandb_images}, step=epoch)
+                print(f"✅ {len(wandb_images)}개 이미지를 WandB에 로깅했습니다.")
+            else:
+                print("⚠️ 로깅할 이미지가 없습니다.")
+            
+            self.student.model.train()
+            
+        except Exception as e:
+            print(f"❌ WandB 이미지 로깅 중 오류: {e}")
+            import traceback
+            traceback.print_exc()

@@ -20,7 +20,7 @@ def run_distillation_clean():
         'epochs': 10,
         'batch_size': 16,
         'learning_rate': 0.001,
-        'num_workers': 8
+        'num_workers': 2
     }
     
     print("🚀 Figma UI Knowledge Distillation 시작")

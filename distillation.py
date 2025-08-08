@@ -471,7 +471,7 @@ class FigmaUIDistillation:
               epochs: int = 100,
               batch_size: int = 16,
               learning_rate: float = 0.001,
-              num_workers: int = 8,
+              num_workers: int = 2,
               save_dir: str = './runs/figma_distillation'):
         """
         전체 학습 실행

@@ -16,7 +16,7 @@ if __name__ == "__main__":
         'epochs': 10,
         'batch_size': 16,
         'learning_rate': 0.001,
-        'num_workers': 8
+        'num_workers': 2
     }
     
     distiller = None
