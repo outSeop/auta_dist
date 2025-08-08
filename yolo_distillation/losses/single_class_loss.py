@@ -179,41 +179,33 @@ class SingleClassDistillationLoss(nn.Module):
     
     def box_iou(self, box1, box2):
         """IoU 계산"""
-        # box1, box2: [N, 4] (x1, y1, x2, y2)
+        # box1: [N, 4], box2: [M, 4] (x1, y1, x2, y2) → pairwise IoU: [N, M]
         print(f"🔍 IoU 계산 - box1: {box1.shape}, box2: {box2.shape}")
         
-        # Shape 확인
-        if box1.shape != box2.shape:
-            print(f"⚠️ Shape 불일치: {box1.shape} vs {box2.shape}")
-            min_len = min(box1.shape[0], box2.shape[0])
-            box1 = box1[:min_len]
-            box2 = box2[:min_len]
-            print(f"🔧 Shape 조정 후: {box1.shape}, {box2.shape}")
+        # 장치/타입 정렬
+        box2 = box2.to(box1.device, dtype=box1.dtype)
         
-        # 유효한 박스만 처리 (너비와 높이가 양수인 것)
-        valid_mask1 = (box1[:, 2] > box1[:, 0]) & (box1[:, 3] > box1[:, 1])
-        valid_mask2 = (box2[:, 2] > box2[:, 0]) & (box2[:, 3] > box2[:, 1])
-        valid_mask = valid_mask1 & valid_mask2
+        N = box1.shape[0]
+        M = box2.shape[0]
+        if N == 0 or M == 0:
+            return torch.zeros((N, M), device=box1.device, dtype=box1.dtype)
         
-        if not valid_mask.any():
-            print("⚠️ 유효한 박스가 없음")
-            return torch.zeros(box1.shape[0], device=box1.device)
+        # 각 박스의 면적 (음수 방지)
+        area1 = torch.clamp((box1[:, 2] - box1[:, 0]), min=0) * torch.clamp((box1[:, 3] - box1[:, 1]), min=0)  # [N]
+        area2 = torch.clamp((box2[:, 2] - box2[:, 0]), min=0) * torch.clamp((box2[:, 3] - box2[:, 1]), min=0)  # [M]
         
-        area1 = (box1[:, 2] - box1[:, 0]) * (box1[:, 3] - box1[:, 1])
-        area2 = (box2[:, 2] - box2[:, 0]) * (box2[:, 3] - box2[:, 1])
+        # 교집합 좌표 (브로드캐스팅)
+        inter_x1 = torch.maximum(box1[:, 0].unsqueeze(1), box2[:, 0].unsqueeze(0))  # [N, M]
+        inter_y1 = torch.maximum(box1[:, 1].unsqueeze(1), box2[:, 1].unsqueeze(0))
+        inter_x2 = torch.minimum(box1[:, 2].unsqueeze(1), box2[:, 2].unsqueeze(0))
+        inter_y2 = torch.minimum(box1[:, 3].unsqueeze(1), box2[:, 3].unsqueeze(0))
         
-        inter_x1 = torch.max(box1[:, 0], box2[:, 0])
-        inter_y1 = torch.max(box1[:, 1], box2[:, 1])
-        inter_x2 = torch.min(box1[:, 2], box2[:, 2])
-        inter_y2 = torch.min(box1[:, 3], box2[:, 3])
+        inter_w = torch.clamp(inter_x2 - inter_x1, min=0)
+        inter_h = torch.clamp(inter_y2 - inter_y1, min=0)
+        inter_area = inter_w * inter_h  # [N, M]
         
-        inter_area = torch.clamp(inter_x2 - inter_x1, min=0) * \
-                    torch.clamp(inter_y2 - inter_y1, min=0)
-        
-        union_area = area1 + area2 - inter_area
-        iou = torch.zeros_like(area1)
-        iou[valid_mask] = inter_area[valid_mask] / (union_area[valid_mask] + 1e-6)
-        
+        union = area1.unsqueeze(1) + area2.unsqueeze(0) - inter_area  # [N, M]
+        iou = inter_area / (union + 1e-6)
         return iou
     
     def compute_localization_quality(self, bbox, objectness, targets):
