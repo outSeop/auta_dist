@@ -69,7 +69,7 @@ class FigmaUIDistillation:
         self.distillation_loss = SingleClassDistillationLoss(
             alpha=0.5, beta=0.5, temperature=4.0, device=self.device
         )
-        self.feature_loss = FeatureAlignmentLoss(device=self.device)
+        self.feature_loss = FeatureAlignmentLoss()
         
         # WandB 초기화
         if self.use_wandb:

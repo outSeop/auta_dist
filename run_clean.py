@@ -26,6 +26,7 @@ def run_distillation_clean():
     print("🚀 Figma UI Knowledge Distillation 시작")
     print("=" * 50)
     
+    distiller = None
     try:
         # 모델 초기화 (디버깅 비활성화)
         print("📦 모델 로딩 중...")
@@ -41,6 +42,21 @@ def run_distillation_clean():
         
     except Exception as e:
         print(f"❌ 모델 초기화 실패: {e}")
+        print("🔄 기본 설정으로 재시도...")
+        try:
+            distiller = FigmaUIDistillation(
+                teacher_model='yolov11l.pt',
+                student_model='yolov11s.yaml',
+                data_yaml=config['data_yaml'],
+                use_wandb=False
+            )
+            print("✅ 기본 설정으로 모델 로딩 완료")
+        except Exception as e2:
+            print(f"❌ 기본 설정으로도 실패: {e2}")
+            return
+    
+    if distiller is None:
+        print("❌ 모델을 초기화할 수 없습니다.")
         return
     
     try:

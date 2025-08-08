@@ -19,6 +19,7 @@ if __name__ == "__main__":
         'num_workers': 8
     }
     
+    distiller = None
     try:
         # 증류 실행
         distiller = FigmaUIDistillation(
@@ -27,15 +28,25 @@ if __name__ == "__main__":
             data_yaml=config['data_yaml'],
             use_wandb=True
         )
+        print("✅ 모델 초기화 성공!")
     except Exception as e:
-        print(f"모델 초기화 중 오류 발생: {e}")
-        # # 기본 설정으로 재시도
-        # distiller = FigmaUIDistillation(
-        #     teacher_model='yolov11l.pt',  # 기본 사전학습 모델
-        #     student_model='yolov11s.pt',  # 기본 Student 모델
-        #     data_yaml=config['data_yaml'],
-        #     use_wandb=False
-        # )
+        print(f"❌ 모델 초기화 중 오류 발생: {e}")
+        print("🔄 기본 설정으로 재시도...")
+        try:
+            distiller = FigmaUIDistillation(
+                teacher_model='yolov11l.pt',  # 기본 사전학습 모델
+                student_model='yolov11s.yaml',  # 기본 Student 모델
+                data_yaml=config['data_yaml'],
+                use_wandb=False
+            )
+            print("✅ 기본 설정으로 모델 초기화 성공!")
+        except Exception as e2:
+            print(f"❌ 기본 설정으로도 실패: {e2}")
+            exit(1)
+    
+    if distiller is None:
+        print("❌ 모델을 초기화할 수 없습니다.")
+        exit(1)
     
     try:
         best_map = distiller.train(
