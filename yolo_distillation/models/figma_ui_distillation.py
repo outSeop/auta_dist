@@ -33,7 +33,8 @@ class FigmaUIDistillation:
                  student_model: str = 'yolov11s.yaml',
                  data_yaml: str = 'figma_ui.yaml',
                  device: str = 'cuda',
-                 use_wandb: bool = True):
+                 use_wandb: bool = True,
+                 verbose_debug: bool = False):
         """
         Args:
             teacher_model: Teacher 모델 경로 (YOLOv11-l)
@@ -41,9 +42,11 @@ class FigmaUIDistillation:
             data_yaml: Figma UI 데이터셋 설정
             device: 학습 디바이스
             use_wandb: WandB 사용 여부
+            verbose_debug: 상세 디버깅 로그 출력 여부
         """
         self.device = device
         self.use_wandb = use_wandb
+        self.verbose_debug = verbose_debug
         
         # 모델 초기화
         print(f"Loading teacher model: {teacher_model}")
@@ -302,10 +305,16 @@ class FigmaUIDistillation:
         
         return metrics
     
+    def debug_print(self, message: str, level: str = "info"):
+        """조건부 디버깅 출력"""
+        if self.verbose_debug:
+            prefix = "🔍" if level == "info" else "⚠️" if level == "warning" else "❌"
+            print(f"{prefix} {message}")
+    
     def parse_model_outputs(self, outputs):
         """모델 출력을 파싱하여 bbox와 objectness 분리"""
-        print(f"🔍 출력 파싱 - shape: {outputs.shape if hasattr(outputs, 'shape') else 'No shape'}")
-        print(f"🔍 출력 파싱 - type: {type(outputs)}")
+        self.debug_print(f"출력 파싱 - shape: {outputs.shape if hasattr(outputs, 'shape') else 'No shape'}")
+        self.debug_print(f"출력 파싱 - type: {type(outputs)}")
         
         # YOLOv11 출력 형식 처리
         if outputs.dim() == 3:  # [batch, num_anchors, features]
@@ -315,7 +324,7 @@ class FigmaUIDistillation:
                     'objectness': outputs[..., 4:5]
                 }
             else:
-                print(f"⚠️ 예상과 다른 출력 차원: {outputs.shape}")
+                self.debug_print(f"예상과 다른 출력 차원: {outputs.shape}", "warning")
                 # 기본값 반환
                 batch_size = outputs.shape[0]
                 return {
@@ -323,7 +332,7 @@ class FigmaUIDistillation:
                     'objectness': torch.zeros(batch_size, 1, 1, device=outputs.device)
                 }
         elif outputs.dim() == 4:  # [batch, features, height, width]
-            print(f"🔍 4D 출력 감지: {outputs.shape}")
+            self.debug_print(f"4D 출력 감지: {outputs.shape}")
             # Feature map 형태인 경우 reshape 필요
             batch_size, features, h, w = outputs.shape
             # Flatten spatial dimensions
@@ -341,7 +350,7 @@ class FigmaUIDistillation:
                     'objectness': torch.zeros(batch_size, h*w, 1, device=outputs.device)
                 }
         else:
-            print(f"❌ 지원하지 않는 출력 차원: {outputs.shape}")
+            self.debug_print(f"지원하지 않는 출력 차원: {outputs.shape}", "error")
             batch_size = outputs.shape[0] if outputs.dim() > 0 else 1
             return {
                 'bbox': torch.zeros(batch_size, 1, 4, device=outputs.device),
