@@ -25,8 +25,7 @@ if __name__ == "__main__":
             teacher_model=config['teacher_model'],
             student_model=config['student_model'],
             data_yaml=config['data_yaml'],
-            use_wandb=True,
-            verbose_debug=False  # 디버깅 출력 비활성화
+            use_wandb=True
         )
     except Exception as e:
         print(f"모델 초기화 중 오류 발생: {e}")
