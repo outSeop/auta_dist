@@ -118,6 +118,7 @@ class SingleClassDistillationLoss(nn.Module):
         # print(f"🔍 Forward에서 targets 전달 - 타입: {type(targets)}")
         if hasattr(targets, 'shape'):
             # print(f"🔍 Forward에서 targets shape: {targets.shape}")
+            pass
         
         loc_quality = self.compute_localization_quality(
             teacher_bbox, teacher_obj, targets
@@ -217,11 +218,13 @@ class SingleClassDistillationLoss(nn.Module):
         # print(f"🔍 Targets 형태: {targets.shape if hasattr(targets, 'shape') else 'No shape'}")
         if hasattr(targets, 'keys'):
             # print(f"🔍 Targets keys: {targets.keys()}")
+            pass
         if isinstance(targets, (list, tuple)):
             # print(f"🔍 Targets 길이: {len(targets)}")
             if len(targets) > 0:
-                print(f"🔍 첫 번째 Target 타입: {type(targets[0])}")
-                print(f"🔍 첫 번째 Target: {targets[0]}")
+                # print(f"🔍 첫 번째 Target 타입: {type(targets[0])}")
+                # print(f"🔍 첫 번째 Target: {targets[0]}")
+                pass
         
         # targets 형태에 따른 처리
         if isinstance(targets, torch.Tensor):
@@ -270,15 +273,16 @@ class SingleClassDistillationLoss(nn.Module):
         
         elif isinstance(targets, dict):
             # 딕셔너리 형태인 경우 - YOLODataset 표준 형태
-            print("🔍 딕셔너리 형태 targets 처리")
+            # print("🔍 딕셔너리 형태 targets 처리")
             batch_idx = targets.get('batch_idx', None)
             bboxes = targets.get('bboxes', None)
             cls = targets.get('cls', None)
             
             if batch_idx is not None and bboxes is not None:
-                print(f"🔍 Batch indices: {batch_idx.shape if hasattr(batch_idx, 'shape') else batch_idx}")
-                print(f"🔍 BBoxes: {bboxes.shape if hasattr(bboxes, 'shape') else bboxes}")
-                print(f"🔍 Classes: {cls.shape if hasattr(cls, 'shape') else cls}")
+                # print(f"🔍 Batch indices: {batch_idx.shape if hasattr(batch_idx, 'shape') else batch_idx}")
+                # print(f"🔍 BBoxes: {bboxes.shape if hasattr(bboxes, 'shape') else bboxes}")
+                # print(f"🔍 Classes: {cls.shape if hasattr(cls, 'shape') else cls}")
+                pass
                 
                 # 배치별로 GT 박스 그룹화
                 unique_batch_idx = torch.unique(batch_idx)
