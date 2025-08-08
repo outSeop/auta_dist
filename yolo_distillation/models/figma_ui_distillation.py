@@ -358,33 +358,68 @@ class FigmaUIDistillation:
             }
     
     def validate(self, val_loader):
-        """검증 수행"""
+        """검증 수행 - 실제 mAP 계산"""
+        if val_loader is None:
+            return {
+                'val/mAP': 0.0,
+                'val/precision': 0.0,
+                'val/recall': 0.0,
+                'val/inference_time': 0.0
+            }
+        
         self.student.model.eval()
         
-        metrics = {
-            'val/mAP': 0,
-            'val/precision': 0,
-            'val/recall': 0,
-            'val/inference_time': 0
-        }
-        
-        with torch.no_grad():
-            for batch in val_loader:
-                images = batch['img'].to(self.device)
-                
-                # 추론 시간 측정
-                import time
-                start_time = time.time()
-                outputs = self.student.model(images)
-                inference_time = time.time() - start_time
-                
-                metrics['val/inference_time'] += inference_time
-                
-                # mAP 계산 (실제 구현 필요)
-                # ...
-        
-        self.student.model.train()
-        return metrics
+        try:
+            # 빠른 평가 (처음 20배치만 사용)
+            eval_metrics = self.evaluate_model(val_loader, epoch=0)
+            
+            # 추론 시간 측정
+            total_time = 0
+            num_batches = 0
+            
+            with torch.no_grad():
+                for batch_idx, batch in enumerate(val_loader):
+                    if batch_idx >= 10:  # 시간 측정용 10배치만
+                        break
+                        
+                    if isinstance(batch, dict):
+                        images = batch.get('img', batch.get('image'))
+                    elif isinstance(batch, (tuple, list)) and len(batch) >= 2:
+                        images = batch[0]
+                    else:
+                        continue
+                    
+                    if images is None:
+                        continue
+                        
+                    images = images.float() / 255.0 if images.dtype == torch.uint8 else images
+                    images = images.to(self.device)
+                    
+                    start_time = time.time()
+                    _ = self.student.model(images)
+                    total_time += time.time() - start_time
+                    num_batches += 1
+            
+            avg_time = total_time / num_batches if num_batches > 0 else 0
+            
+            self.student.model.train()
+            return {
+                'val/mAP': eval_metrics.get('map50', 0.0),
+                'val/mAP_50_95': eval_metrics.get('map', 0.0),
+                'val/precision': eval_metrics.get('precision', 0.0),
+                'val/recall': eval_metrics.get('recall', 0.0),
+                'val/inference_time': avg_time
+            }
+            
+        except Exception as e:
+            print(f"⚠️ 검증 중 오류: {e}")
+            self.student.model.train()
+            return {
+                'val/mAP': 0.0,
+                'val/precision': 0.0,
+                'val/recall': 0.0,
+                'val/inference_time': 0.0
+            }
     
     def train(self,
               epochs: int = 100,
@@ -441,9 +476,9 @@ class FigmaUIDistillation:
                             epoch_metrics[k] = 0
                         epoch_metrics[k] += v
                     
-                    # 주기적 로깅
-                    if batch_idx % 10 == 0:
-                        print(f"Batch {batch_idx}: Loss = {metrics.get('loss/total', 0):.4f}")
+                    # 주기적 로깅 (더 간결하게)
+                    if batch_idx % 20 == 0:
+                        print(f"  📊 Batch {batch_idx}: Loss = {metrics.get('loss/total', 0):.4f}")
                         if self.use_wandb:
                             wandb.log(metrics, step=epoch * len(train_loader) + batch_idx)
                             
@@ -492,15 +527,23 @@ class FigmaUIDistillation:
                     'lr': scheduler.get_last_lr()[0]
                 })
             
+            # 에폭 결과 표시
+            print(f"📈 Epoch {epoch+1}/{epochs} 완료:")
+            print(f"   🔥 평균 손실: {epoch_metrics['loss/total']:.4f}")
+            print(f"   🎯 mAP@50: {val_metrics.get('val/mAP', 0):.4f}")
+            print(f"   ⚡ 추론 시간: {val_metrics.get('val/inference_time', 0)*1000:.1f}ms")
+            
             # 모델 저장
             if val_metrics['val/mAP'] > best_map:
                 best_map = val_metrics['val/mAP']
                 save_path = f"{save_dir}/best_model.pt"
                 torch.save(self.student.model.state_dict(), save_path)
-                print(f"Best model saved: mAP={best_map:.4f}")
+                print(f"🌟 새로운 최고 성능! mAP: {best_map:.4f}")
                 
                 if self.use_wandb:
                     wandb.save(save_path)
+            
+            print("-" * 40)
         
         return best_map
     

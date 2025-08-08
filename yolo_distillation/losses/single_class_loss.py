@@ -55,8 +55,8 @@ class SingleClassDistillationLoss(nn.Module):
         student_obj = student_outputs['objectness']  # [B, N, 1]
         teacher_obj = teacher_outputs['objectness'].detach()
         
-        print(f"🔍 Student objectness shape: {student_obj.shape}")
-        print(f"🔍 Teacher objectness shape: {teacher_obj.shape}")
+        # print(f"🔍 Student objectness shape: {student_obj.shape}")
+        # print(f"🔍 Teacher objectness shape: {teacher_obj.shape}")
         
         # 지능적 차원 정렬 (정보 손실 최소화)
         if student_obj.shape != teacher_obj.shape:
@@ -78,8 +78,8 @@ class SingleClassDistillationLoss(nn.Module):
         student_bbox = student_outputs['bbox']  # [B, N, 4]
         teacher_bbox = teacher_outputs['bbox'].detach()
         
-        print(f"🔍 Student bbox shape: {student_bbox.shape}")
-        print(f"🔍 Teacher bbox shape: {teacher_bbox.shape}")
+        # print(f"🔍 Student bbox shape: {student_bbox.shape}")
+        # print(f"🔍 Teacher bbox shape: {teacher_bbox.shape}")
         
         # 지능적 차원 정렬 (BBox도 동일하게)
         if student_bbox.shape != teacher_bbox.shape:
@@ -91,8 +91,8 @@ class SingleClassDistillationLoss(nn.Module):
             high_conf_mask = torch.sigmoid(teacher_obj) > 0.5  # [B, N, 1]
             high_conf_mask_bbox = high_conf_mask.squeeze(-1)   # [B, N] for bbox indexing
             
-            print(f"🔍 high_conf_mask shape: {high_conf_mask.shape}")
-            print(f"🔍 high_conf_mask_bbox shape: {high_conf_mask_bbox.shape}")
+            # print(f"🔍 high_conf_mask shape: {high_conf_mask.shape}")
+            # print(f"🔍 high_conf_mask_bbox shape: {high_conf_mask_bbox.shape}")
             
             if high_conf_mask.any():
                 # BBox 마스킹 - 차원 맞춤
@@ -115,9 +115,9 @@ class SingleClassDistillationLoss(nn.Module):
         
         # 3. Localization Quality 증류
         # Teacher의 localization quality를 전달
-        print(f"🔍 Forward에서 targets 전달 - 타입: {type(targets)}")
+        # print(f"🔍 Forward에서 targets 전달 - 타입: {type(targets)}")
         if hasattr(targets, 'shape'):
-            print(f"🔍 Forward에서 targets shape: {targets.shape}")
+            # print(f"🔍 Forward에서 targets shape: {targets.shape}")
         
         loc_quality = self.compute_localization_quality(
             teacher_bbox, teacher_obj, targets
@@ -145,7 +145,7 @@ class SingleClassDistillationLoss(nn.Module):
     
     def bbox_distillation_loss(self, student_bbox, teacher_bbox):
         """Bounding Box 증류 손실 (IoU + L1)"""
-        print(f"🔍 BBox 손실 계산 - Student shape: {student_bbox.shape}, Teacher shape: {teacher_bbox.shape}")
+        # print(f"🔍 BBox 손실 계산 - Student shape: {student_bbox.shape}, Teacher shape: {teacher_bbox.shape}")
         
         # 너무 많은 박스가 있으면 샘플링 (메모리 절약)
         if student_bbox.shape[0] > 10000:
@@ -180,7 +180,7 @@ class SingleClassDistillationLoss(nn.Module):
     def box_iou(self, box1, box2):
         """IoU 계산"""
         # box1: [N, 4], box2: [M, 4] (x1, y1, x2, y2) → pairwise IoU: [N, M]
-        print(f"🔍 IoU 계산 - box1: {box1.shape}, box2: {box2.shape}")
+        # print(f"🔍 IoU 계산 - box1: {box1.shape}, box2: {box2.shape}")
         
         # 장치/타입 정렬
         box2 = box2.to(box1.device, dtype=box1.dtype)
@@ -213,12 +213,12 @@ class SingleClassDistillationLoss(nn.Module):
         # Teacher 예측과 GT 간의 IoU를 quality score로 사용
         quality_scores = []
         
-        print(f"🔍 Targets 타입: {type(targets)}")
-        print(f"🔍 Targets 형태: {targets.shape if hasattr(targets, 'shape') else 'No shape'}")
+        # print(f"🔍 Targets 타입: {type(targets)}")
+        # print(f"🔍 Targets 형태: {targets.shape if hasattr(targets, 'shape') else 'No shape'}")
         if hasattr(targets, 'keys'):
-            print(f"🔍 Targets keys: {targets.keys()}")
+            # print(f"🔍 Targets keys: {targets.keys()}")
         if isinstance(targets, (list, tuple)):
-            print(f"🔍 Targets 길이: {len(targets)}")
+            # print(f"🔍 Targets 길이: {len(targets)}")
             if len(targets) > 0:
                 print(f"🔍 첫 번째 Target 타입: {type(targets[0])}")
                 print(f"🔍 첫 번째 Target: {targets[0]}")
@@ -345,7 +345,7 @@ class SingleClassDistillationLoss(nn.Module):
         """
         Teacher와 Student 출력을 지능적으로 정렬 (정보 손실 최소화)
         """
-        print(f"🔧 정렬 전 - Teacher: {teacher_out.shape}, Student: {student_out.shape}")
+        # print(f"🔧 정렬 전 - Teacher: {teacher_out.shape}, Student: {student_out.shape}")
         
         # 다차원 텐서 안전하게 처리
         batch_size = teacher_out.shape[0]

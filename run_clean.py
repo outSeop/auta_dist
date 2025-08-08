@@ -34,9 +34,11 @@ def run_distillation_clean():
             student_model=config['student_model'], 
             data_yaml=config['data_yaml'],
             use_wandb=True,
-            verbose_debug=False
+            verbose_debug=False  # 디버깅 출력 완전 비활성화
         )
         print("✅ 모델 로딩 완료")
+        print(f"   Teacher: {distiller.teacher.model.model[-1].nc if hasattr(distiller.teacher.model.model[-1], 'nc') else 'N/A'} classes")
+        print(f"   Student: {distiller.student.model.model[-1].nc if hasattr(distiller.student.model.model[-1], 'nc') else 'N/A'} classes")
         
     except Exception as e:
         print(f"❌ 모델 초기화 실패: {e}")
