@@ -203,11 +203,25 @@ class FigmaUIDistillation:
             print("🔍 Student 추론 시작...")
             raw_student_preds = self.student.model(images)  # 원본 예측 보관
             print(f"🔍 Student 출력 타입: {type(raw_student_preds)}")
+            
+            # 원본 예측 구조 상세 디버깅
             if isinstance(raw_student_preds, (list, tuple)):
                 print(f"🔍 Student 출력 개수: {len(raw_student_preds)}")
+                for i, item in enumerate(raw_student_preds):
+                    print(f"🔍 Student 출력[{i}] 타입: {type(item)}")
+                    if hasattr(item, 'shape'):
+                        print(f"🔍 Student 출력[{i}] 형태: {item.shape}")
+                
+                # 텐서만 필터링하여 YOLO 손실에 전달
+                tensor_preds = [item for item in raw_student_preds if hasattr(item, 'view')]
+                print(f"🔍 텐서 예측 개수: {len(tensor_preds)}")
+                
                 student_outputs_for_parsing = raw_student_preds[0] if len(raw_student_preds) > 0 else raw_student_preds
             else:
+                print(f"🔍 Student 단일 출력 형태: {getattr(raw_student_preds, 'shape', 'No shape')}")
+                tensor_preds = raw_student_preds
                 student_outputs_for_parsing = raw_student_preds
+                
             student_outputs = self.parse_model_outputs(student_outputs_for_parsing)  # KD용 파싱
             student_features = []  # 임시로 빈 리스트
             
@@ -250,7 +264,13 @@ class FigmaUIDistillation:
         try:
             # 원본 배치 딕셔너리 준비 (이미지를 GPU 텐서로 교체)
             batch_for_loss = {**batch, 'img': images}
-            base_loss = self.student.model.loss(raw_student_preds, batch_for_loss)
+            
+            # 텐서만 필터링된 예측 사용
+            print(f"🔍 Base 손실용 예측 타입: {type(tensor_preds)}")
+            if isinstance(tensor_preds, list):
+                print(f"🔍 Base 손실용 예측 개수: {len(tensor_preds)}")
+            
+            base_loss = self.student.model.loss(tensor_preds, batch_for_loss)
             print(f"✅ Base 손실 계산 성공: {base_loss.item():.4f}")
         except Exception as base_error:
             import traceback
@@ -259,6 +279,11 @@ class FigmaUIDistillation:
             print(f"   오류 메시지: {str(base_error)}")
             print(f"   스택 트레이스:")
             print(traceback.format_exc())
+            print(f"🔍 디버깅 - tensor_preds 타입: {type(tensor_preds)}")
+            if isinstance(tensor_preds, list):
+                print(f"🔍 디버깅 - tensor_preds 길이: {len(tensor_preds)}")
+                for i, pred in enumerate(tensor_preds):
+                    print(f"🔍 디버깅 - tensor_preds[{i}] 타입: {type(pred)}")
             raise base_error
         
         # 전체 손실 조합
