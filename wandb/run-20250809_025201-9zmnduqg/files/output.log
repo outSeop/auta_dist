@@ -1,0 +1,35 @@
+
+🧪 모델 출력 형식 테스트...
+🎓 Teacher 출력:
+   - 타입: <class 'tuple'>
+   - 길이: 2
+   - 첫번째 요소 형태: torch.Size([1, 5, 8400])
+🎒 Student 출력:
+   - 타입: <class 'list'>
+   - 길이: 3
+   - 첫번째 요소 형태: torch.Size([1, 144, 80, 80])
+✅ 모델 초기화 성공!
+🔧 디바이스별 최적화 설정:
+   - 배치 크기: 4 → 2
+   - 워커 수: 1 → 1
+   - Pin Memory: False
+Fast image access ✅ (ping: 0.0±0.0 ms, read: 349.2±77.4 MB/s, size: 131.3 KB)
+Scanning data/yolo_dataset_unified/labels/train.cache... 649 images, 3047 backgrounds, 0 corrupt: 100%|██████████| 3696/3696 [00:00<?, ?it/s]
+data/yolo_dataset_unified/images/train/test_391.jpg: 1 duplicate labels removed
+data/yolo_dataset_unified/images/train/trainval_2728.jpg: 1 duplicate labels removed
+data/yolo_dataset_unified/images/train/trainval_3562.jpg: 4 duplicate labels removed
+🔸 학습 데이터를 100개로 제한
+Fast image access ✅ (ping: 0.0±0.0 ms, read: 348.4±86.0 MB/s, size: 119.3 KB)
+Scanning data/yolo_dataset_unified/labels/val.cache... 250 images, 568 backgrounds, 0 corrupt: 100%|██████████| 818/818 [00:00<?, ?it/s]
+data/yolo_dataset_unified/images/val/trainval_1981.jpg: 1 duplicate labels removed
+data/yolo_dataset_unified/images/val/trainval_3744.jpg: 3 duplicate labels removed
+🔸 검증 데이터를 50개로 제한
+✅ 데이터로더 생성 완료!
+   학습: 50 batches
+   검증: 25 batches
+🎯 Knowledge Distillation 학습 시작: 2 epochs
+--------------------------------------------------
+
+[Epoch 1/2]
+  📊 Batch 0: Loss = 5.1055
+  📊 Batch 20: Loss = 5.5335

@@ -1,0 +1,72 @@
+
+🧪 모델 출력 형식 테스트...
+🎓 Teacher 출력:
+   - 타입: <class 'tuple'>
+   - 길이: 2
+   - 첫번째 요소 형태: torch.Size([1, 5, 8400])
+🎒 Student 출력:
+   - 타입: <class 'list'>
+   - 길이: 3
+   - 첫번째 요소 형태: torch.Size([1, 144, 80, 80])
+✅ 모델 초기화 성공!
+🔧 디바이스별 최적화 설정:
+   - 배치 크기: 8 → 6
+   - 워커 수: 2 → 1
+   - Pin Memory: False
+Fast image access ✅ (ping: 0.0±0.0 ms, read: 387.1±124.5 MB/s, size: 103.4 KB)
+Scanning data/yolo_dataset_unified/labels/train... 649 images, 3047 backgrounds, 0 corrupt: 100%|██████████| 3696/3696 [00:01<00:00, 3115.20it/s]
+data/yolo_dataset_unified/images/train/test_391.jpg: 1 duplicate labels removed
+data/yolo_dataset_unified/images/train/trainval_2728.jpg: 1 duplicate labels removed
+data/yolo_dataset_unified/images/train/trainval_3562.jpg: 4 duplicate labels removed
+New cache created: data/yolo_dataset_unified/labels/train.cache
+Fast image access ✅ (ping: 0.0±0.0 ms, read: 403.2±78.9 MB/s, size: 110.2 KB)
+Scanning data/yolo_dataset_unified/labels/val... 250 images, 568 backgrounds, 0 corrupt: 100%|██████████| 818/818 [00:00<00:00, 3179.32it/s]
+data/yolo_dataset_unified/images/val/trainval_1981.jpg: 1 duplicate labels removed
+data/yolo_dataset_unified/images/val/trainval_3744.jpg: 3 duplicate labels removed
+New cache created: data/yolo_dataset_unified/labels/val.cache
+✅ 데이터로더 생성 완료!
+   학습: 616 batches
+   검증: 137 batches
+🎯 Knowledge Distillation 학습 시작: 5 epochs
+--------------------------------------------------
+
+[Epoch 1/5]
+학습 중 오류 발생: Caught RuntimeError in DataLoader worker process 0.
+Original Traceback (most recent call last):
+  File "/usr/local/Caskroom/miniconda/base/envs/auta_dist/lib/python3.11/site-packages/torch/utils/data/_utils/worker.py", line 308, in _worker_loop
+    data = fetcher.fetch(index)
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/Caskroom/miniconda/base/envs/auta_dist/lib/python3.11/site-packages/torch/utils/data/_utils/fetch.py", line 51, in fetch
+    data = [self.dataset[idx] for idx in possibly_batched_index]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/Caskroom/miniconda/base/envs/auta_dist/lib/python3.11/site-packages/torch/utils/data/_utils/fetch.py", line 51, in <listcomp>
+    data = [self.dataset[idx] for idx in possibly_batched_index]
+            ~~~~~~~~~~~~^^^^^
+  File "/usr/local/Caskroom/miniconda/base/envs/auta_dist/lib/python3.11/site-packages/ultralytics/data/base.py", line 379, in __getitem__
+    return self.transforms(self.get_image_and_label(index))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/Caskroom/miniconda/base/envs/auta_dist/lib/python3.11/site-packages/ultralytics/data/augment.py", line 202, in __call__
+    data = t(data)
+           ^^^^^^^
+  File "/usr/local/Caskroom/miniconda/base/envs/auta_dist/lib/python3.11/site-packages/ultralytics/data/augment.py", line 2192, in __call__
+    labels["img"] = self._format_img(img)
+                    ^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/Caskroom/miniconda/base/envs/auta_dist/lib/python3.11/site-packages/ultralytics/data/augment.py", line 2243, in _format_img
+    img = torch.from_numpy(img)
+          ^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: Numpy is not available
+
+기본 YOLO 학습을 시도합니다...
+
+학습 완료! Best mAP: 0.0000
+
+=== 모델 성능 비교 ===
+Teacher (YOLOv11-l): 높은 정확도, 느린 속도
+Student (YOLOv11-s): mAP=0.0000, 빠른 추론 속도
+압축률: ~10x 파라미터 감소
+속도 향상: ~3-5x 추론 속도 향상
+
+=== 추론 속도 테스트 ===
+Teacher 추론 시간: 98.35ms
+Student 추론 시간: 57.92ms
+속도 향상: 1.70x

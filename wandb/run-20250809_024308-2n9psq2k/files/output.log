@@ -1,0 +1,154 @@
+
+🧪 모델 출력 형식 테스트...
+🎓 Teacher 출력:
+   - 타입: <class 'tuple'>
+   - 길이: 2
+   - 첫번째 요소 형태: torch.Size([1, 5, 8400])
+🎒 Student 출력:
+   - 타입: <class 'list'>
+   - 길이: 3
+   - 첫번째 요소 형태: torch.Size([1, 144, 80, 80])
+✅ 모델 초기화 성공!
+🔧 디바이스별 최적화 설정:
+   - 배치 크기: 8 → 6
+   - 워커 수: 2 → 1
+   - Pin Memory: False
+Fast image access ✅ (ping: 0.2±0.1 ms, read: 394.2±152.7 MB/s, size: 125.6 KB)
+Scanning data/yolo_dataset_unified/labels/train.cache... 649 images, 3047 backgrounds, 0 corrupt: 100%|██████████| 3696/3696 [00:00<?, ?it/s]
+data/yolo_dataset_unified/images/train/test_391.jpg: 1 duplicate labels removed
+data/yolo_dataset_unified/images/train/trainval_2728.jpg: 1 duplicate labels removed
+data/yolo_dataset_unified/images/train/trainval_3562.jpg: 4 duplicate labels removed
+Fast image access ✅ (ping: 0.1±0.0 ms, read: 440.9±61.1 MB/s, size: 116.4 KB)
+Scanning data/yolo_dataset_unified/labels/val.cache... 250 images, 568 backgrounds, 0 corrupt: 100%|██████████| 818/818 [00:00<?, ?it/s]
+data/yolo_dataset_unified/images/val/trainval_1981.jpg: 1 duplicate labels removed
+data/yolo_dataset_unified/images/val/trainval_3744.jpg: 3 duplicate labels removed
+✅ 데이터로더 생성 완료!
+   학습: 616 batches
+   검증: 137 batches
+🎯 Knowledge Distillation 학습 시작: 5 epochs
+--------------------------------------------------
+
+[Epoch 1/5]
+❌ 손실 계산 중 오류: The operator 'aten::upsample_linear1d.out' is not currently implemented for the MPS device. If you want this op to be added in priority during the prototype phase of this feature, please comment on https://github.com/pytorch/pytorch/issues/77764. As a temporary fix, you can set the environment variable `PYTORCH_ENABLE_MPS_FALLBACK=1` to use the CPU as a fallback for this op. WARNING: this will be slower than running natively on MPS.
+❌ 손실 계산 중 오류: element 0 of tensors does not require grad and does not have a grad_fn
+  📊 Batch 0: Loss = 0.0000
+❌ 손실 계산 중 오류: The operator 'aten::upsample_linear1d.out' is not currently implemented for the MPS device. If you want this op to be added in priority during the prototype phase of this feature, please comment on https://github.com/pytorch/pytorch/issues/77764. As a temporary fix, you can set the environment variable `PYTORCH_ENABLE_MPS_FALLBACK=1` to use the CPU as a fallback for this op. WARNING: this will be slower than running natively on MPS.
+❌ 손실 계산 중 오류: element 0 of tensors does not require grad and does not have a grad_fn
+❌ 손실 계산 중 오류: The operator 'aten::upsample_linear1d.out' is not currently implemented for the MPS device. If you want this op to be added in priority during the prototype phase of this feature, please comment on https://github.com/pytorch/pytorch/issues/77764. As a temporary fix, you can set the environment variable `PYTORCH_ENABLE_MPS_FALLBACK=1` to use the CPU as a fallback for this op. WARNING: this will be slower than running natively on MPS.
+❌ 손실 계산 중 오류: element 0 of tensors does not require grad and does not have a grad_fn
+❌ 손실 계산 중 오류: The operator 'aten::upsample_linear1d.out' is not currently implemented for the MPS device. If you want this op to be added in priority during the prototype phase of this feature, please comment on https://github.com/pytorch/pytorch/issues/77764. As a temporary fix, you can set the environment variable `PYTORCH_ENABLE_MPS_FALLBACK=1` to use the CPU as a fallback for this op. WARNING: this will be slower than running natively on MPS.
+❌ 손실 계산 중 오류: element 0 of tensors does not require grad and does not have a grad_fn
+❌ 손실 계산 중 오류: The operator 'aten::upsample_linear1d.out' is not currently implemented for the MPS device. If you want this op to be added in priority during the prototype phase of this feature, please comment on https://github.com/pytorch/pytorch/issues/77764. As a temporary fix, you can set the environment variable `PYTORCH_ENABLE_MPS_FALLBACK=1` to use the CPU as a fallback for this op. WARNING: this will be slower than running natively on MPS.
+❌ 손실 계산 중 오류: element 0 of tensors does not require grad and does not have a grad_fn
+❌ 손실 계산 중 오류: The operator 'aten::upsample_linear1d.out' is not currently implemented for the MPS device. If you want this op to be added in priority during the prototype phase of this feature, please comment on https://github.com/pytorch/pytorch/issues/77764. As a temporary fix, you can set the environment variable `PYTORCH_ENABLE_MPS_FALLBACK=1` to use the CPU as a fallback for this op. WARNING: this will be slower than running natively on MPS.
+❌ 손실 계산 중 오류: element 0 of tensors does not require grad and does not have a grad_fn
+❌ 손실 계산 중 오류: The operator 'aten::upsample_linear1d.out' is not currently implemented for the MPS device. If you want this op to be added in priority during the prototype phase of this feature, please comment on https://github.com/pytorch/pytorch/issues/77764. As a temporary fix, you can set the environment variable `PYTORCH_ENABLE_MPS_FALLBACK=1` to use the CPU as a fallback for this op. WARNING: this will be slower than running natively on MPS.
+❌ 손실 계산 중 오류: element 0 of tensors does not require grad and does not have a grad_fn
+❌ 손실 계산 중 오류: The operator 'aten::upsample_linear1d.out' is not currently implemented for the MPS device. If you want this op to be added in priority during the prototype phase of this feature, please comment on https://github.com/pytorch/pytorch/issues/77764. As a temporary fix, you can set the environment variable `PYTORCH_ENABLE_MPS_FALLBACK=1` to use the CPU as a fallback for this op. WARNING: this will be slower than running natively on MPS.
+❌ 손실 계산 중 오류: element 0 of tensors does not require grad and does not have a grad_fn
+❌ 손실 계산 중 오류: The operator 'aten::upsample_linear1d.out' is not currently implemented for the MPS device. If you want this op to be added in priority during the prototype phase of this feature, please comment on https://github.com/pytorch/pytorch/issues/77764. As a temporary fix, you can set the environment variable `PYTORCH_ENABLE_MPS_FALLBACK=1` to use the CPU as a fallback for this op. WARNING: this will be slower than running natively on MPS.
+❌ 손실 계산 중 오류: element 0 of tensors does not require grad and does not have a grad_fn
+❌ 손실 계산 중 오류: The operator 'aten::upsample_linear1d.out' is not currently implemented for the MPS device. If you want this op to be added in priority during the prototype phase of this feature, please comment on https://github.com/pytorch/pytorch/issues/77764. As a temporary fix, you can set the environment variable `PYTORCH_ENABLE_MPS_FALLBACK=1` to use the CPU as a fallback for this op. WARNING: this will be slower than running natively on MPS.
+❌ 손실 계산 중 오류: element 0 of tensors does not require grad and does not have a grad_fn
+❌ 손실 계산 중 오류: The operator 'aten::upsample_linear1d.out' is not currently implemented for the MPS device. If you want this op to be added in priority during the prototype phase of this feature, please comment on https://github.com/pytorch/pytorch/issues/77764. As a temporary fix, you can set the environment variable `PYTORCH_ENABLE_MPS_FALLBACK=1` to use the CPU as a fallback for this op. WARNING: this will be slower than running natively on MPS.
+❌ 손실 계산 중 오류: element 0 of tensors does not require grad and does not have a grad_fn
+❌ 손실 계산 중 오류: The operator 'aten::upsample_linear1d.out' is not currently implemented for the MPS device. If you want this op to be added in priority during the prototype phase of this feature, please comment on https://github.com/pytorch/pytorch/issues/77764. As a temporary fix, you can set the environment variable `PYTORCH_ENABLE_MPS_FALLBACK=1` to use the CPU as a fallback for this op. WARNING: this will be slower than running natively on MPS.
+❌ 손실 계산 중 오류: element 0 of tensors does not require grad and does not have a grad_fn
+❌ 손실 계산 중 오류: The operator 'aten::upsample_linear1d.out' is not currently implemented for the MPS device. If you want this op to be added in priority during the prototype phase of this feature, please comment on https://github.com/pytorch/pytorch/issues/77764. As a temporary fix, you can set the environment variable `PYTORCH_ENABLE_MPS_FALLBACK=1` to use the CPU as a fallback for this op. WARNING: this will be slower than running natively on MPS.
+❌ 손실 계산 중 오류: element 0 of tensors does not require grad and does not have a grad_fn
+❌ 손실 계산 중 오류: The operator 'aten::upsample_linear1d.out' is not currently implemented for the MPS device. If you want this op to be added in priority during the prototype phase of this feature, please comment on https://github.com/pytorch/pytorch/issues/77764. As a temporary fix, you can set the environment variable `PYTORCH_ENABLE_MPS_FALLBACK=1` to use the CPU as a fallback for this op. WARNING: this will be slower than running natively on MPS.
+❌ 손실 계산 중 오류: element 0 of tensors does not require grad and does not have a grad_fn
+❌ 손실 계산 중 오류: The operator 'aten::upsample_linear1d.out' is not currently implemented for the MPS device. If you want this op to be added in priority during the prototype phase of this feature, please comment on https://github.com/pytorch/pytorch/issues/77764. As a temporary fix, you can set the environment variable `PYTORCH_ENABLE_MPS_FALLBACK=1` to use the CPU as a fallback for this op. WARNING: this will be slower than running natively on MPS.
+❌ 손실 계산 중 오류: element 0 of tensors does not require grad and does not have a grad_fn
+❌ 손실 계산 중 오류: The operator 'aten::upsample_linear1d.out' is not currently implemented for the MPS device. If you want this op to be added in priority during the prototype phase of this feature, please comment on https://github.com/pytorch/pytorch/issues/77764. As a temporary fix, you can set the environment variable `PYTORCH_ENABLE_MPS_FALLBACK=1` to use the CPU as a fallback for this op. WARNING: this will be slower than running natively on MPS.
+❌ 손실 계산 중 오류: element 0 of tensors does not require grad and does not have a grad_fn
+❌ 손실 계산 중 오류: The operator 'aten::upsample_linear1d.out' is not currently implemented for the MPS device. If you want this op to be added in priority during the prototype phase of this feature, please comment on https://github.com/pytorch/pytorch/issues/77764. As a temporary fix, you can set the environment variable `PYTORCH_ENABLE_MPS_FALLBACK=1` to use the CPU as a fallback for this op. WARNING: this will be slower than running natively on MPS.
+❌ 손실 계산 중 오류: element 0 of tensors does not require grad and does not have a grad_fn
+Traceback (most recent call last):
+  File "/Users/song-inseop/dev/auta_colab/main.py", line 69, in <module>
+    best_map = distiller.train(
+               ^^^^^^^^^^^^^^^^
+  File "/Users/song-inseop/dev/auta_colab/yolo_distillation/models/figma_ui_distillation.py", line 472, in train
+    metrics = self.train_step(batch, optimizer)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/song-inseop/dev/auta_colab/yolo_distillation/models/figma_ui_distillation.py", line 239, in train_step
+    teacher_outputs = self._get_teacher_predictions(images)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/song-inseop/dev/auta_colab/yolo_distillation/models/figma_ui_distillation.py", line 302, in _get_teacher_predictions
+    teacher_outputs = self.teacher.model(images)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/Caskroom/miniconda/base/envs/yolo-distill/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1511, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/Caskroom/miniconda/base/envs/yolo-distill/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1520, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/Caskroom/miniconda/base/envs/yolo-distill/lib/python3.11/site-packages/ultralytics/nn/tasks.py", line 139, in forward
+    return self.predict(x, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/Caskroom/miniconda/base/envs/yolo-distill/lib/python3.11/site-packages/ultralytics/nn/tasks.py", line 157, in predict
+    return self._predict_once(x, profile, visualize, embed)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/Caskroom/miniconda/base/envs/yolo-distill/lib/python3.11/site-packages/ultralytics/nn/tasks.py", line 180, in _predict_once
+    x = m(x)  # run
+        ^^^^
+  File "/usr/local/Caskroom/miniconda/base/envs/yolo-distill/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1511, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/Caskroom/miniconda/base/envs/yolo-distill/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1520, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/Caskroom/miniconda/base/envs/yolo-distill/lib/python3.11/site-packages/ultralytics/nn/modules/block.py", line 318, in forward
+    y.extend(m(y[-1]) for m in self.m)
+  File "/usr/local/Caskroom/miniconda/base/envs/yolo-distill/lib/python3.11/site-packages/ultralytics/nn/modules/block.py", line 318, in <genexpr>
+    y.extend(m(y[-1]) for m in self.m)
+             ^^^^^^^^
+  File "/usr/local/Caskroom/miniconda/base/envs/yolo-distill/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1511, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/Caskroom/miniconda/base/envs/yolo-distill/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1520, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/Caskroom/miniconda/base/envs/yolo-distill/lib/python3.11/site-packages/ultralytics/nn/modules/block.py", line 353, in forward
+    return self.cv3(torch.cat((self.m(self.cv1(x)), self.cv2(x)), 1))
+                               ^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/Caskroom/miniconda/base/envs/yolo-distill/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1511, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/Caskroom/miniconda/base/envs/yolo-distill/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1520, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/Caskroom/miniconda/base/envs/yolo-distill/lib/python3.11/site-packages/torch/nn/modules/container.py", line 217, in forward
+    input = module(input)
+            ^^^^^^^^^^^^^
+  File "/usr/local/Caskroom/miniconda/base/envs/yolo-distill/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1511, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/Caskroom/miniconda/base/envs/yolo-distill/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1520, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/Caskroom/miniconda/base/envs/yolo-distill/lib/python3.11/site-packages/ultralytics/nn/modules/block.py", line 495, in forward
+    return x + self.cv2(self.cv1(x)) if self.add else self.cv2(self.cv1(x))
+                        ^^^^^^^^^^^
+  File "/usr/local/Caskroom/miniconda/base/envs/yolo-distill/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1511, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/Caskroom/miniconda/base/envs/yolo-distill/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1520, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/Caskroom/miniconda/base/envs/yolo-distill/lib/python3.11/site-packages/ultralytics/nn/modules/conv.py", line 80, in forward
+    return self.act(self.bn(self.conv(x)))
+                    ^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/Caskroom/miniconda/base/envs/yolo-distill/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1511, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/Caskroom/miniconda/base/envs/yolo-distill/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1520, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/Caskroom/miniconda/base/envs/yolo-distill/lib/python3.11/site-packages/torch/nn/modules/batchnorm.py", line 175, in forward
+    return F.batch_norm(
+           ^^^^^^^^^^^^^
+  File "/usr/local/Caskroom/miniconda/base/envs/yolo-distill/lib/python3.11/site-packages/torch/nn/functional.py", line 2482, in batch_norm
+    return torch.batch_norm(
+           ^^^^^^^^^^^^^^^^^
+KeyboardInterrupt

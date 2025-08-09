@@ -1,0 +1,37 @@
+{
+  "os": "macOS-10.16-x86_64-i386-64bit",
+  "python": "CPython 3.11.13",
+  "startedAt": "2025-08-08T18:03:57.946885Z",
+  "program": "/Users/song-inseop/dev/auta_colab/main.py",
+  "codePath": "main.py",
+  "codePathLocal": "main.py",
+  "git": {
+    "remote": "https://github.com/outSeop/auta_dist.git",
+    "commit": "17d92604d39f05f2139ab61943c2607c535ae7ae"
+  },
+  "email": "sis000419@gmail.com",
+  "root": "/Users/song-inseop/dev/auta_colab",
+  "host": "inssongs-MacBook-Pro.local",
+  "executable": "/usr/local/Caskroom/miniconda/base/envs/yolo-distill/bin/python",
+  "cpu_count": 8,
+  "cpu_count_logical": 8,
+  "disk": {
+    "/": {
+      "total": "494384795648",
+      "used": "417502875648"
+    }
+  },
+  "memory": {
+    "total": "17179869184"
+  },
+  "apple": {
+    "name": "Unknown",
+    "ecpuCores": 2,
+    "pcpuCores": 6,
+    "gpuCores": 14,
+    "memoryGb": 16,
+    "swapTotalBytes": "4294967296",
+    "ramTotalBytes": "17179869184"
+  },
+  "writerId": "8mrra3dewjr9u4zhn9jr4tfeo8li98cr"
+}

@@ -1,0 +1,1 @@
+{"loss/feature":0,"_step":50,"loss/detection":0,"val/inference_time":0.6432650566101075,"_wandb":{"runtime":228},"feature_total":0,"lr":0.0005,"_runtime":228.389429292,"val/precision":0,"epoch":1,"loss/total":0,"total_loss":0,"_timestamp":1.754676440441406e+09,"val/mAP":0,"val/mAP_50_95":0,"val/recall":0,"loss/base":0}
