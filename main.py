@@ -19,11 +19,14 @@ if __name__ == "__main__":
     # 환경 정보 출력
     print(f"🐍 Python: {torch.__version__}")
     print(f"🔥 PyTorch: {torch.__version__}")
-    print(f"💻 플랫폼: {torch.get_device_name(0) if torch.cuda.is_available() else 'CPU/MPS'}")
     if torch.cuda.is_available():
+        print(f"💻 플랫폼: {torch.cuda.get_device_name(0)}")
         print(f"🚀 CUDA: {torch.version.cuda}")
     elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
-        print(f"🍎 Apple Silicon MPS 지원")
+        print(f"💻 플랫폼: Apple Silicon MPS")
+        print(f"🍎 MPS 지원 활성화")
+    else:
+        print(f"💻 플랫폼: CPU")
     print("-" * 60)
     
     # Figma UI 검증을 위한 증류 설정

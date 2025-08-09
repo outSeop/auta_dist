@@ -14,9 +14,9 @@ def run_distillation_clean():
     
     # 설정
     config = {
-        'teacher_model': '/content/auta_dist/weight/best_forest.pt',
+        'teacher_model': './weight/best_forest.pt',
         'student_model': 'yolo11s.yaml',
-        'data_yaml': '/content/drive/MyDrive/Colab Notebooks/AUTA/data/yolo_dataset_webforest/data.yaml',
+        'data_yaml': './data/yolo_dataset_webforest 3/data.yaml',
         'epochs': 10,
         'batch_size': 16,
         'learning_rate': 0.001,
